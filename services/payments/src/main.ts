@@ -10,13 +10,14 @@ import { OTelTelemetry } from "./adapters/outbound/telemetry/otel-telemetry.js";
 import { CreatePaymentUseCase } from "./application/create-payment.js";
 import { config } from "./infrastructure/config.js";
 import { startTelemetry } from "./infrastructure/telemetry.js";
+import { Payment } from "./domain/payment.js";
 
 async function bootstrap() {
   startTelemetry("payments-service", config.otelEndpoint);
 
   const mongo = new MongoClient(config.mongoUri);
   await mongo.connect();
-  const collection = mongo.db(config.dbName).collection("payments");
+  const collection = mongo.db(config.dbName).collection<Payment>("payments");
 
   const kafka = new Kafka({
     clientId: `${config.kafkaClientId}-payments`,

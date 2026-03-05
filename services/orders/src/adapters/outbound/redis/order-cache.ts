@@ -3,7 +3,7 @@ import type { Order } from "../../../domain/order.js";
 import type { OrderCachePort } from "../../../application/ports.js";
 
 export class RedisOrderCache implements OrderCachePort {
-  constructor(private readonly redis: Redis) {}
+  constructor(private readonly redis: Redis.Redis) {}
 
   async get(id: string): Promise<Order | null> {
     const raw = await this.redis.get(`order:${id}`);
