@@ -11,15 +11,16 @@ import { CreateOrderUseCase } from "./application/create-order.js";
 import { GetOrderUseCase } from "./application/get-order.js";
 import { config } from "./infrastructure/config.js";
 import { startTelemetry } from "./infrastructure/telemetry.js";
+import { Order } from "./domain/order.js";
 
 async function bootstrap() {
   startTelemetry("orders-service", config.otelEndpoint);
 
   const mongo = new MongoClient(config.mongoUri);
   await mongo.connect();
-  const collection = mongo.db(config.dbName).collection("orders");
+  const collection = mongo.db(config.dbName).collection<Order>("orders");
 
-  const redis = new Redis(config.redisUrl);
+  const redis = new Redis.Redis(config.redisUrl);
 
   const kafka = new Kafka({
     clientId: `${config.kafkaClientId}-orders`,
