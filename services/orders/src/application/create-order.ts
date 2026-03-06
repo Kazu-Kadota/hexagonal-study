@@ -21,6 +21,9 @@ export class CreateOrderUseCase {
   }) {
     return this.telemetry.span("orders.create", async () => {
       const order = createOrder(input);
+
+      const idempotency = crypto.randomUUID();
+
       await this.repository.save(order);
       await this.cache.set(order);
       await this.eventBus.publish("order.created", {
@@ -30,6 +33,7 @@ export class CreateOrderUseCase {
           customerId: order.customerId,
           amount: order.amount,
           currency: order.currency,
+          idempotencyKey: idempotency,
         },
       });
 
