@@ -13,4 +13,14 @@ export class RedisOrderCache implements OrderCachePort {
   async set(order: Order): Promise<void> {
     await this.redis.set(`order:${order.id}`, JSON.stringify(order), "EX", 60);
   }
+
+  async delete(id: string): Promise<void> {
+    const raw = await this.redis.get(`order:${id}`);
+
+    if (!raw) {
+      return;
+    }
+
+    await this.redis.del(raw);
+  }
 }

@@ -1,9 +1,11 @@
+export type OrderStatus = "CREATED" | "CANCELED";
+
 export type Order = {
   id: string;
   customerId: string;
   amount: number;
   currency: string;
-  status: "CREATED";
+  status: OrderStatus;
   createdAt: string;
 };
 

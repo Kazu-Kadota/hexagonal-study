@@ -12,6 +12,8 @@ import { GetOrderUseCase } from "./application/get-order.js";
 import { config } from "./infrastructure/config.js";
 import { startTelemetry } from "./infrastructure/telemetry.js";
 import { Order } from "./domain/order.js";
+import { CancelOrderUseCase } from "./application/cancel-order.js";
+import { DeleteOrderUseCase } from "./application/delete-order.js";
 
 async function bootstrap() {
   startTelemetry("orders-service", config.otelEndpoint);
@@ -41,10 +43,17 @@ async function bootstrap() {
     telemetry,
   );
   const getOrderUseCase = new GetOrderUseCase(repository, cache, telemetry);
+  const cancelOrderUseCase = new CancelOrderUseCase(repository, cache, eventBus, telemetry);
+  const deleteOrderUseCase = new DeleteOrderUseCase(repository, cache, eventBus, telemetry);
 
   const app = express();
   app.use(express.json());
-  app.use(buildOrderRouter(createOrderUseCase, getOrderUseCase));
+  app.use(buildOrderRouter(
+    createOrderUseCase,
+    getOrderUseCase,
+    cancelOrderUseCase,
+    deleteOrderUseCase
+  ));
 
   app.listen(config.port, () => {
     console.log(`orders service on :${config.port}`);
