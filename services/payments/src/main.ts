@@ -11,6 +11,10 @@ import { CreatePaymentUseCase } from "./application/create-payment.js";
 import { config } from "./infrastructure/config.js";
 import { startTelemetry } from "./infrastructure/telemetry.js";
 import { Payment } from "./domain/payment.js";
+import { RedisPaymentCache } from "./adapters/outbound/redis/payment-cache.js";
+import Redis from "ioredis";
+import { UUID } from "crypto";
+import { GetPaymentUseCase } from "./application/get-payment.js";
 
 async function bootstrap() {
   startTelemetry("payments-service", config.otelEndpoint);
@@ -33,15 +37,19 @@ async function bootstrap() {
 
   const stripe = new Stripe(config.stripeSecretKey, { apiVersion: "2024-06-20" });
 
+  const redis = new Redis.Redis(config.redisUrl);
+
   const repository = new MongoPaymentRepository(collection);
   const gateway = new StripeGateway(stripe);
   const eventBus = new KafkaEventBus(producer);
+  const cache = new RedisPaymentCache(redis);
   const telemetry = new OTelTelemetry();
 
   const createPaymentUseCase = new CreatePaymentUseCase(
     repository,
     gateway,
     eventBus,
+    cache,
     telemetry,
   );
 
@@ -49,15 +57,30 @@ async function bootstrap() {
     eachMessage: async ({ message }) => {
       if (!message.value) return;
       const event = JSON.parse(message.value.toString()) as {
-        payload: { orderId: string; amount: number; currency: string };
+        payload: {
+          orderId: string;
+          customerId: string;
+          amount: number;
+          currency: string;
+          idempotencyKey: UUID;
+        };
       };
       await createPaymentUseCase.execute(event.payload);
     },
   });
 
+  const getPaymentUseCase = new GetPaymentUseCase(
+    repository,
+    cache,
+    telemetry
+  );
+
   const app = express();
   app.use(express.json());
-  app.use(buildPaymentRouter(createPaymentUseCase));
+  app.use(buildPaymentRouter(
+    createPaymentUseCase,
+    getPaymentUseCase
+  ));
 
   app.listen(config.port, () => {
     console.log(`payments service on :${config.port}`);
