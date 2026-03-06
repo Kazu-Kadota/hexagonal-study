@@ -12,4 +12,16 @@ export class MongoOrderRepository implements OrderRepositoryPort {
   async findById(id: string): Promise<Order | null> {
     return this.collection.findOne({ id });
   }
+
+  async cancel(id: string): Promise<void> {
+    await this.collection.updateOne({ id }, { 
+      $set: { 
+        status: "CANCELED"
+      }
+    });
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.collection.deleteOne({ id });
+  }
 }
