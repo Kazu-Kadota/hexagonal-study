@@ -4,7 +4,7 @@ import { bootstrapNest } from "./adapters/inbound/http/nest/bootstrap.js";
 import { TelemetryConnection } from "./adapters/outbound/telemetry/infra/connection.js";
 
 async function bootstrap() {
-  const telemetry = new TelemetryConnection("orders-service", config.otelEndpoint);
+  const telemetry = new TelemetryConnection(`${config.service}-service`, config.otelEndpoint);
   telemetry.start();
 
   switch (config.framework) {

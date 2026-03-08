@@ -1,23 +1,24 @@
 import express from "express";
 import { config } from "../../../../infrastructure/config.js";
-import { Order } from "../../../../domain/order.js";
-import { MongoOrderRepository } from "../../../outbound/mongodb/order-repository.js";
-import { RedisOrderCache } from "../../../outbound/redis/order-cache.js";
 import { KafkaEventBus } from "../../../outbound/kafka/event-bus.js";
 import { OTelTelemetry } from "../../../outbound/telemetry/otel-telemetry.js";
-import { CreateOrderUseCase } from "../../../../application/create-order.js";
-import { GetOrderUseCase } from "../../../../application/get-order.js";
-import { CancelOrderUseCase } from "../../../../application/cancel-order.js";
-import { DeleteOrderUseCase } from "../../../../application/delete-order.js";
-import { buildOrderRouter } from "./order-controller.js";
 import { MongoConnection } from "../../../outbound/mongodb/infra/connection.js";
 import { RedisConnection } from "../../../outbound/redis/infra/connection.js";
 import { KafkaConnection } from "../../../outbound/kafka/infra/connection.js";
+import { Payment } from "../../../../domain/payment.js";
+import { StripeConnection } from "../../../outbound/stripe/infra/connection.js";
+import { MongoPaymentRepository } from "../../../outbound/mongodb/payment-repository.js";
+import { RedisPaymentCache } from "../../../outbound/redis/payment-cache.js";
+import { StripeGateway } from "../../../outbound/stripe/stripe-gateway.js";
+import { CreatePaymentUseCase } from "../../../../application/create-payment.js";
+import { UUID } from "crypto";
+import { GetPaymentUseCase } from "../../../../application/get-payment.js";
+import { buildPaymentRouter } from "./payment-controller.js";
 
 export async function bootstrapExpress() {
   const mongoConnection = new MongoConnection(config.mongoUri, config.dbName);
   await mongoConnection.connect();
-  const collection = mongoConnection.getCollection<Order>(config.service);
+  const collection = mongoConnection.getCollection<Payment>(config.service);
 
   const redisConnection = new RedisConnection(config.redisUrl)
   const redis = redisConnection.connect();
@@ -28,29 +29,53 @@ export async function bootstrapExpress() {
   );
   await kafkaConnection.connect();
   const producer = await kafkaConnection.producer();
+  const consumer = await kafkaConnection.consumer(config.kafkaGroupId);
+  await consumer.subscribe({ topic: "order.created", fromBeginning: true });
 
-  const repository = new MongoOrderRepository(collection);
-  const cache = new RedisOrderCache(redis);
+  const stripeConnection = new StripeConnection(config.stripeSecretKey);
+  const stripe = stripeConnection.connect();
+
+  const repository = new MongoPaymentRepository(collection);
+  const cache = new RedisPaymentCache(redis);
   const eventBus = new KafkaEventBus(producer);
   const telemetry = new OTelTelemetry();
+  const gateway = new StripeGateway(stripe);
 
-  const createOrderUseCase = new CreateOrderUseCase(
+  const createPaymentUseCase = new CreatePaymentUseCase(
     repository,
-    cache,
+    gateway,
     eventBus,
+    cache,
     telemetry,
   );
-  const getOrderUseCase = new GetOrderUseCase(repository, cache, telemetry);
-  const cancelOrderUseCase = new CancelOrderUseCase(repository, cache, eventBus, telemetry);
-  const deleteOrderUseCase = new DeleteOrderUseCase(repository, cache, eventBus, telemetry);
+
+  const getPaymentUseCase = new GetPaymentUseCase(
+    repository,
+    cache,
+    telemetry
+  );
+  
+  await consumer.run({
+    eachMessage: async ({ message }) => {
+      if (!message.value) return;
+      const event = JSON.parse(message.value.toString()) as {
+        payload: {
+          orderId: string;
+          customerId: string;
+          amount: number;
+          currency: string;
+          idempotencyKey: UUID;
+        };
+      };
+      await createPaymentUseCase.execute(event.payload);
+    },
+  });
 
   const appExpress = express();
   appExpress.use(express.json());
-  appExpress.use(buildOrderRouter(
-    createOrderUseCase,
-    getOrderUseCase,
-    cancelOrderUseCase,
-    deleteOrderUseCase
+  appExpress.use(buildPaymentRouter(
+    createPaymentUseCase,
+    getPaymentUseCase
   ));
 
   const server = appExpress.listen(config.port, () => {

@@ -97,28 +97,47 @@ import { Producer } from 'kafkajs';
     },
     {
       provide: GetOrderUseCase,
-      useFactory: (repository, cache, telemetry) => {
+      useFactory: (
+        repository: MongoOrderRepository,
+        cache: RedisOrderCache,
+        telemetry: OTelTelemetry
+      ) => {
         return new GetOrderUseCase(repository, cache, telemetry);
       },
       inject: [ORDER_REPOSITORY, ORDER_CACHE, TELEMETRY]
     },
     {
       provide: CreateOrderUseCase,
-      useFactory: (repository, cache, eventBus, telemetry) => {
+      useFactory: (
+        repository: MongoOrderRepository,
+        cache: RedisOrderCache,
+        eventBus: KafkaEventBus,
+        telemetry: OTelTelemetry
+      ) => {
         return new CreateOrderUseCase(repository, cache, eventBus, telemetry);
       },
       inject: [ORDER_REPOSITORY, ORDER_CACHE, EVENT_BUS, TELEMETRY]
     },
     {
       provide: CancelOrderUseCase,
-      useFactory: (repository, cache, eventBus, telemetry) => {
+      useFactory: (
+        repository: MongoOrderRepository,
+        cache: RedisOrderCache,
+        eventBus: KafkaEventBus,
+        telemetry: OTelTelemetry
+      ) => {
         return new CancelOrderUseCase(repository, cache, eventBus, telemetry);
       },
       inject: [ORDER_REPOSITORY, ORDER_CACHE, EVENT_BUS, TELEMETRY]
     },
     {
       provide: DeleteOrderUseCase,
-      useFactory: (repository, cache, eventBus, telemetry) => {
+      useFactory: (
+        repository: MongoOrderRepository,
+        cache: RedisOrderCache,
+        eventBus: KafkaEventBus,
+        telemetry: OTelTelemetry
+      ) => {
         return new DeleteOrderUseCase(repository, cache, eventBus, telemetry);
       },
       inject: [ORDER_REPOSITORY, ORDER_CACHE, EVENT_BUS, TELEMETRY]
