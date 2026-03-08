@@ -18,10 +18,10 @@ export class CancelOrderUseCase {
       await this.orderRepository.cancel(order.id);
       await this.cache.set({
         ...order,
-        status: "CANCELED"
+        status: "CANCELLED"
       });
-      await this.eventBus.publish("order.canceled", {
-        type: "order.canceled",
+      await this.eventBus.publish("order.cancelled", {
+        type: "order.cancelled",
         payload: {
           orderId: order.id,
           customerId: order.customerId,

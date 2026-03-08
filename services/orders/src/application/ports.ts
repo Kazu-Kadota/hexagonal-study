@@ -1,22 +1,22 @@
 import type { Order } from "../domain/order.js";
 
-export interface OrderRepositoryPort {
-  save(order: Order): Promise<void>;
-  findById(id: string): Promise<Order | null>;
-  cancel(id: string): Promise<void>;
-  delete(id: string): Promise<void>;
+export abstract class OrderRepositoryPort {
+  abstract save(order: Order): Promise<void>;
+  abstract findById(id: string): Promise<Order | null>;
+  abstract cancel(id: string): Promise<void>;
+  abstract delete(id: string): Promise<void>;
 }
 
-export interface OrderCachePort {
-  get(id: string): Promise<Order | null>;
-  set(order: Order): Promise<void>;
-  delete(id: string): Promise<void>;
+export abstract class OrderCachePort {
+  abstract get(id: string): Promise<Order | null>;
+  abstract set(order: Order): Promise<void>;
+  abstract delete(id: string): Promise<void>;
 }
 
-export interface EventBusPort {
-  publish(topic: string, message: object): Promise<void>;
+export abstract class EventBusPort {
+  abstract publish(topic: string, message: object): Promise<void>;
 }
 
-export interface TelemetryPort {
-  span<T>(name: string, fn: () => Promise<T>): Promise<T>;
+export abstract class TelemetryPort {
+  abstract span<T>(name: string, fn: () => Promise<T>): Promise<T>;
 }

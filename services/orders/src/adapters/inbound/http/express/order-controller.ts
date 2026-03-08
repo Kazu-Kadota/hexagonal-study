@@ -1,10 +1,9 @@
 import type { Request, Response, Router } from "express";
 import { Router as createRouter } from "express";
-import { CreateOrderUseCase } from "../../../application/create-order.js";
-import { GetOrderUseCase } from "../../../application/get-order.js";
-import { CancelOrderUseCase } from "../../../application/cancel-order.js";
-import { DeleteOrderUseCase } from "../../../application/delete-order.js";
-import { error } from "console";
+import { CreateOrderUseCase } from "../../../../application/create-order.js";
+import { GetOrderUseCase } from "../../../../application/get-order.js";
+import { CancelOrderUseCase } from "../../../../application/cancel-order.js";
+import { DeleteOrderUseCase } from "../../../../application/delete-order.js";
 
 export function buildOrderRouter(
   createOrderUseCase: CreateOrderUseCase,
