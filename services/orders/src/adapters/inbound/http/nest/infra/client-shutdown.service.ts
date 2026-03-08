@@ -1,8 +1,8 @@
 import { BeforeApplicationShutdown, Inject, Injectable } from "@nestjs/common";
-import { Producer } from "kafkajs";
 import { MongoConnection } from "../../../../outbound/mongodb/infra/connection.js";
 import { RedisConnection } from "../../../../outbound/redis/infra/connection.js";
-import { KAFKA_PRODUCER, MONGO_CONNECTION, REDIS_CONNECTION } from "../token.js";
+import { KAFKA_CONNECTION, KAFKA_PRODUCER, MONGO_CONNECTION, REDIS_CONNECTION } from "../token.js";
+import { KafkaConnection } from "../../../../outbound/kafka/infra/connection.js";
 
 @Injectable()
 export class ClientShutdownService implements BeforeApplicationShutdown {
@@ -13,12 +13,9 @@ export class ClientShutdownService implements BeforeApplicationShutdown {
     @Inject(REDIS_CONNECTION)
     private redisConnection: RedisConnection,
     
-    @Inject(KAFKA_PRODUCER)
-    private kafkaProducer: Producer
+    @Inject(KAFKA_CONNECTION)
+    private kafkaConnection: KafkaConnection
   ) {}
-
-  async onApplicationShutdown(signal: NodeJS.Signals): Promise<void> {
-  }
 
   async beforeApplicationShutdown() {
     console.log("Shutting down gracefully...");
@@ -26,7 +23,7 @@ export class ClientShutdownService implements BeforeApplicationShutdown {
     const results = await Promise.allSettled([
       this.mongoConnection.close(),
       this.redisConnection.close(),
-      this.kafkaProducer.disconnect(),
+      this.kafkaConnection.close(),
     ])
 
     for (const result of results) {

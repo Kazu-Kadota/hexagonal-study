@@ -1,12 +1,10 @@
 import { Module } from '@nestjs/common';
 import { OrderController } from './order.controller.js';
 import { OrderService } from './order.service.js';
-import { EVENT_BUS, KAFKA_PRODUCER, MONGO_COLLECTION, MONGO_CONNECTION, ORDER_CACHE, ORDER_REPOSITORY, REDIS_CONNECTION, TELEMETRY } from './token.js';
-import { Collection, MongoClient } from 'mongodb';
+import { EVENT_BUS, KAFKA_CONNECTION, KAFKA_PRODUCER, MONGO_COLLECTION, MONGO_CONNECTION, ORDER_CACHE, ORDER_REPOSITORY, REDIS_CONNECTION, TELEMETRY } from './token.js';
+import { Collection } from 'mongodb';
 import { Order } from '../../../../domain/order.js';
 import { config } from '../../../../infrastructure/config.js';
-import { Redis } from 'ioredis';
-import { Kafka, Producer } from 'kafkajs';
 import { KafkaEventBus } from '../../../outbound/kafka/event-bus.js';
 import { OTelTelemetry } from '../../../outbound/telemetry/otel-telemetry.js';
 import { MongoOrderRepository } from '../../../outbound/mongodb/order-repository.js';
@@ -19,6 +17,7 @@ import { MongoConnection } from '../../../outbound/mongodb/infra/connection.js';
 import { RedisConnection } from '../../../outbound/redis/infra/connection.js';
 import { KafkaConnection } from '../../../outbound/kafka/infra/connection.js';
 import { ClientShutdownService } from './infra/client-shutdown.service.js';
+import { Producer } from 'kafkajs';
 
 @Module({
   imports: [],
@@ -30,7 +29,7 @@ import { ClientShutdownService } from './infra/client-shutdown.service.js';
       provide: MONGO_CONNECTION,
       useFactory: async (): Promise<MongoConnection> => {
         const mongo = new MongoConnection(config.mongoUri, config.dbName);
-        await mongo.connect()
+        await mongo.connect();
         return mongo;
       }
     },
@@ -45,25 +44,33 @@ import { ClientShutdownService } from './infra/client-shutdown.service.js';
       provide: REDIS_CONNECTION,
       useFactory: (): RedisConnection => {
         const redis = new RedisConnection(config.redisUrl);
+        redis.connect();
         return redis
       }
     },
     {
-      provide: KAFKA_PRODUCER,
-      useFactory: async (): Promise<Producer> => {
+      provide: KAFKA_CONNECTION,
+      useFactory: async (): Promise<KafkaConnection> => {
         const kafka = new KafkaConnection(
           `${config.kafkaClientId}-${config.service}`,
           config.kafkaBrokers
         );
-        const producer = await kafka.producer();
-        return producer
+        await kafka.connect();
+        return kafka
       }
+    },
+    {
+      provide: KAFKA_PRODUCER,
+      useFactory: async (kafkaConnection: KafkaConnection): Promise<Producer> => {
+        return await kafkaConnection.producer();
+      },
+      inject: [KAFKA_CONNECTION]
     },
     {
       provide: EVENT_BUS,
       useFactory: (producer): KafkaEventBus => {
         const eventBus = new KafkaEventBus(producer);
-        return eventBus
+        return eventBus;
       },
       inject: [KAFKA_PRODUCER]
     },
@@ -71,7 +78,7 @@ import { ClientShutdownService } from './infra/client-shutdown.service.js';
       provide: TELEMETRY,
       useFactory: (): OTelTelemetry => {
         const telemetry = new OTelTelemetry();
-        return telemetry
+        return telemetry;
       }
     },
     {

@@ -2,6 +2,8 @@ import { Consumer, Kafka, Producer } from "kafkajs";
 
 export class KafkaConnection {
   private client: Kafka | null = null;
+  private connectedProducer: Producer | null = null;
+  private connectedConsumers: Consumer[] = [];
 
   constructor(
     private readonly clientId: string,
@@ -24,8 +26,11 @@ export class KafkaConnection {
       throw new Error("KafkaConnection is not connected");
     }
 
+    if (this.connectedProducer) return this.connectedProducer;
+
     const producer = this.client.producer();
     await producer.connect();
+    this.connectedProducer = producer;
     return producer;
   }
 
@@ -38,13 +43,26 @@ export class KafkaConnection {
       groupId: `${this.clientId}-${name}`,
     });
     await consumer.connect();
+    this.connectedConsumers.push(consumer);
     return consumer;
   }
 
   async close(): Promise<void> {
     if (!this.client) return;
 
-    await this.client.admin().disconnect();
+    const closeOperations: Promise<unknown>[] = [];
+
+    if (this.connectedProducer) {
+      closeOperations.push(this.connectedProducer.disconnect());
+      this.connectedProducer = null;
+    }
+
+    if (this.connectedConsumers.length) {
+      closeOperations.push(...this.connectedConsumers.map((consumer) => consumer.disconnect()));
+      this.connectedConsumers = [];
+    }
+
+    await Promise.allSettled(closeOperations);
     this.client = null;
   }
 }
