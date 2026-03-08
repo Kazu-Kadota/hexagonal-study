@@ -28,11 +28,11 @@ export class MongoConnection {
     return this.getDb().collection<T>(name);
   }
 
-  isHealthy(): boolean {
+  async isHealthy(): Promise<boolean> {
     if (!this.client) return false;
 
     try {
-      this.client.db(this.dbName).command({ ping: 1 });
+      await this.client.db(this.dbName).command({ ping: 1 });
       return true;
     } catch {
       return false;

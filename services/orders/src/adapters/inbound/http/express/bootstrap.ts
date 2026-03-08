@@ -18,18 +18,19 @@ import { RedisConnection } from "../../../outbound/redis/infra/connection.js";
 import { KafkaConnection } from "../../../outbound/kafka/infra/connection.js";
 
 export async function bootstrapExpress() {
-  const mongo = new MongoConnection(config.mongoUri, config.dbName);
-  await mongo.connect();
-  const collection = mongo.getCollection<Order>(config.service);
+  const mongoConnection = new MongoConnection(config.mongoUri, config.dbName);
+  await mongoConnection.connect();
+  const collection = mongoConnection.getCollection<Order>(config.service);
 
   const redisConnection = new RedisConnection(config.redisUrl)
   const redis = redisConnection.connect();
 
-  const kafka = await new KafkaConnection(
+  const kafkaConnection = new KafkaConnection(
     `${config.kafkaClientId}-${config.service}`,
     config.kafkaBrokers
-  ).connect();
-  const producer = kafka.producer();
+  );
+  await kafkaConnection.connect();
+  const producer = await kafkaConnection.producer();
 
   const repository = new MongoOrderRepository(collection);
   const cache = new RedisOrderCache(redis);
@@ -62,7 +63,7 @@ export async function bootstrapExpress() {
   let shuttingDown = false;
 
   async function shutdown(signal: string) {
-    telemetry.span("shutdown", async () => {
+    await telemetry.span("shutdown", async () => {
       await performShutdown(signal);
     });
   }
@@ -79,9 +80,9 @@ export async function bootstrapExpress() {
       }
 
       const results = await Promise.allSettled([
-        mongo.close(),
+        mongoConnection.close(),
         redisConnection.close(),
-        producer.disconnect(),
+        kafkaConnection.close(),
       ]);
 
       for (const result of results) {
