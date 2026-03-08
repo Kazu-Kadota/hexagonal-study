@@ -13,13 +13,17 @@ export class GetPaymentUseCase {
         const cached = await this.cache.get(`payment:${paymentId}`);
 
         if (cached) {
-            return cached;
+          return cached;
         }
 
         const payment = await this.repository.findById(paymentId);
 
         if (!payment) {
-            throw new Error(`Payment with id ${paymentId} not found`);
+          throw new Error(`Payment with id ${paymentId} not found`, {
+            cause: {
+              status: 404,
+            }
+          });
         }
 
         await this.cache.set(`payment:${paymentId}`, payment, 60 * 60);

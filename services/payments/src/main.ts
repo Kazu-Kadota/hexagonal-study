@@ -1,90 +1,22 @@
-import express from "express";
-import { MongoClient } from "mongodb";
-import { Kafka } from "kafkajs";
-import Stripe from "stripe";
-import { buildPaymentRouter } from "./adapters/inbound/http/payment-controller.js";
-import { MongoPaymentRepository } from "./adapters/outbound/mongodb/payment-repository.js";
-import { StripeGateway } from "./adapters/outbound/stripe/stripe-gateway.js";
-import { KafkaEventBus } from "./adapters/outbound/kafka/event-bus.js";
-import { OTelTelemetry } from "./adapters/outbound/telemetry/otel-telemetry.js";
-import { CreatePaymentUseCase } from "./application/create-payment.js";
 import { config } from "./infrastructure/config.js";
-import { startTelemetry } from "./infrastructure/telemetry.js";
-import { Payment } from "./domain/payment.js";
-import { RedisPaymentCache } from "./adapters/outbound/redis/payment-cache.js";
-import Redis from "ioredis";
-import { UUID } from "crypto";
-import { GetPaymentUseCase } from "./application/get-payment.js";
+import { TelemetryConnection } from "./adapters/outbound/telemetry/infra/connection.js";
+import { bootstrapExpress } from "./adapters/inbound/http/express/bootstrap.js";
+import { bootstrapNest } from "./adapters/inbound/http/nest/bootstrap.js";
 
 async function bootstrap() {
-  startTelemetry("payments-service", config.otelEndpoint);
+  const telemetry = new TelemetryConnection(`${config.service}-service`, config.otelEndpoint)
+  telemetry.start();
 
-  const mongo = new MongoClient(config.mongoUri);
-  await mongo.connect();
-  const collection = mongo.db(config.dbName).collection<Payment>("payments");
-
-  const kafka = new Kafka({
-    clientId: `${config.kafkaClientId}-payments`,
-    brokers: config.kafkaBrokers,
-  });
-
-  const producer = kafka.producer();
-  await producer.connect();
-
-  const consumer = kafka.consumer({ groupId: `${config.kafkaGroupId}-payments` });
-  await consumer.connect();
-  await consumer.subscribe({ topic: "order.created", fromBeginning: true });
-
-  const stripe = new Stripe(config.stripeSecretKey, { apiVersion: "2024-06-20" });
-
-  const redis = new Redis.Redis(config.redisUrl);
-
-  const repository = new MongoPaymentRepository(collection);
-  const gateway = new StripeGateway(stripe);
-  const eventBus = new KafkaEventBus(producer);
-  const cache = new RedisPaymentCache(redis);
-  const telemetry = new OTelTelemetry();
-
-  const createPaymentUseCase = new CreatePaymentUseCase(
-    repository,
-    gateway,
-    eventBus,
-    cache,
-    telemetry,
-  );
-
-  await consumer.run({
-    eachMessage: async ({ message }) => {
-      if (!message.value) return;
-      const event = JSON.parse(message.value.toString()) as {
-        payload: {
-          orderId: string;
-          customerId: string;
-          amount: number;
-          currency: string;
-          idempotencyKey: UUID;
-        };
-      };
-      await createPaymentUseCase.execute(event.payload);
-    },
-  });
-
-  const getPaymentUseCase = new GetPaymentUseCase(
-    repository,
-    cache,
-    telemetry
-  );
-
-  const app = express();
-  app.use(express.json());
-  app.use(buildPaymentRouter(
-    createPaymentUseCase,
-    getPaymentUseCase
-  ));
-
-  app.listen(config.port, () => {
-    console.log(`payments service on :${config.port}`);
-  });
+  switch (config.framework) {
+    case ("express"):
+      await bootstrapExpress();
+      break;
+    case ("nest"):
+      await bootstrapNest();
+      break;
+    default:
+      throw new Error("Invalid framework");
+  }
 }
 
 bootstrap().catch((error) => {

@@ -1,4 +1,3 @@
-import { UUID } from "crypto";
 import { createPaymentRecord } from "../domain/payment.js";
 import type {
   EventBusPort,
@@ -20,7 +19,7 @@ export class CreatePaymentUseCase {
   async execute(input: { 
     amount: number;
     currency: string;
-    idempotencyKey: UUID;
+    idempotencyKey: string;
     orderId: string;
   }) {
     return this.telemetry.span("payments.create", async () => {

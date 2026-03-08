@@ -9,7 +9,7 @@ export class OrderController {
     private readonly orderService: OrderService
   ) {}
 
-  @Post("orders")
+  @Post("order")
   @HttpCode(201)
   async createOrder(@Body() body: CreateOrderDto): Promise<GetOrderOutputDto> {
     const order = await this.orderService.createOrder(body);
@@ -17,7 +17,7 @@ export class OrderController {
     return output;
   }
 
-  @Get("orders/:id")
+  @Get("order/:id")
   @HttpCode(200)
   async getOrder(@Param() param: GetOrderDto): Promise<GetOrderOutputDto> {
     const order = await this.orderService.getOrder(param.id);
@@ -30,7 +30,7 @@ export class OrderController {
     return output;
   }
 
-  @Put("orders/:id/cancel")
+  @Put("order/:id/cancel")
   @HttpCode(200)
   async cancelOrder(@Param() param: CancelOrderDto): Promise<void> {
     try {
@@ -44,7 +44,7 @@ export class OrderController {
     }
   }
 
-  @Delete("orders/:id")
+  @Delete("order/:id")
   @HttpCode(200)
   async deleteOrder(@Param() param: DeleteOrderDto): Promise<void> {
     try {

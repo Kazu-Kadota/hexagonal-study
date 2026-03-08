@@ -13,12 +13,12 @@ export function buildOrderRouter(
 ): Router {
   const router = createRouter();
 
-  router.post("/orders", async (req: Request, res: Response) => {
+  router.post("/order", async (req: Request, res: Response) => {
     const order = await createOrderUseCase.execute(req.body);
     res.status(201).json(order);
   });
 
-  router.get("/orders/:id", async (req: Request, res: Response) => {
+  router.get("/order/:id", async (req: Request, res: Response) => {
     const order = await getOrderUseCase.execute(req.params.id);
     if (!order) {
       res.status(404).json({ error: "Order not found" });
@@ -27,7 +27,7 @@ export function buildOrderRouter(
     res.json(order);
   });
 
-  router.put("/orders/:id/cancel", async (req: Request, res: Response) => {
+  router.put("/order/:id/cancel", async (req: Request, res: Response) => {
     try {
       await cancelOrderUseCase.execute(req.params.id);
       res.status(200).send();
@@ -40,7 +40,7 @@ export function buildOrderRouter(
     }
   })
 
-  router.delete("/orders/:id", async (req: Request, res: Response) => {
+  router.delete("/order/:id", async (req: Request, res: Response) => {
     try {
       await deleteOrderUseCase.execute(req.params.id);
       res.status(200).send();

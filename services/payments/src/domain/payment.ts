@@ -1,8 +1,6 @@
-import { UUID } from "crypto";
-
 export type Payment = {
   id: string;
-  idempotency: UUID
+  idempotency: string;
   orderId: string;
   amount: number;
   currency: string;
@@ -12,7 +10,7 @@ export type Payment = {
 };
 
 export function createPaymentRecord(props: {
-  idempotency: UUID;
+  idempotency: string;
   orderId: string;
   amount: number;
   currency: string;
