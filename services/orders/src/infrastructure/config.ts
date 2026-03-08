@@ -1,6 +1,7 @@
 import "dotenv/config";
 
 export const config = {
+  service: "orders",
   framework: process.env.FRAMEWORK ?? "express",
   port: Number(process.env.ORDERS_PORT ?? 3001),
   mongoUri: process.env.MONGO_URI ?? "mongodb://localhost:27017",

@@ -1,9 +1,7 @@
-import { UUID } from "node:crypto";
-
 export type OrderStatus = "CREATED" | "CANCELLED";
 
 export type Order = {
-  id: UUID;
+  id: string;
   customerId: string;
   amount: number;
   currency: string;

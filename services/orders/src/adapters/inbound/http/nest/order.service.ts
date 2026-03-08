@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { CancelOrderUseCase } from "../../../../application/cancel-order.js";
 import { DeleteOrderUseCase } from "../../../../application/delete-order.js";
 import { GetOrderUseCase } from "../../../../application/get-order.js";
@@ -8,9 +8,16 @@ import { Order } from "../../../../domain/order.js";
 @Injectable()
 export class OrderService {
   constructor(
+    @Inject(CreateOrderUseCase)
     private readonly createOrderUseCase: CreateOrderUseCase,
+    
+    @Inject(GetOrderUseCase)
     private readonly getOrderUseCase: GetOrderUseCase,
+    
+    @Inject(CancelOrderUseCase)
     private readonly cancelOrderUseCase: CancelOrderUseCase,
+    
+    @Inject(DeleteOrderUseCase)
     private readonly deleteOrderUseCase: DeleteOrderUseCase
   ) {}
 
@@ -18,8 +25,8 @@ export class OrderService {
     customerId: string;
     amount: number;
     currency: string;
-  }): Promise<void> {
-    await this.createOrderUseCase.execute(input);
+  }): Promise<Order> {
+    return await this.createOrderUseCase.execute(input);
   }
 
   async getOrder(id: string): Promise<Order | null> {

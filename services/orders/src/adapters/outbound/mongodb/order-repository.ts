@@ -1,7 +1,6 @@
 import type { Collection } from "mongodb";
 import type { Order } from "../../../domain/order.js";
 import type { OrderRepositoryPort } from "../../../application/ports.js";
-import { UUID } from "node:crypto";
 
 export class MongoOrderRepository implements OrderRepositoryPort {
   constructor(private readonly collection: Collection<Order>) {}
@@ -10,11 +9,11 @@ export class MongoOrderRepository implements OrderRepositoryPort {
     await this.collection.insertOne(order);
   }
 
-  async findById(id: UUID): Promise<Order | null> {
+  async findById(id: string): Promise<Order | null> {
     return this.collection.findOne({ id });
   }
 
-  async cancel(id: UUID): Promise<void> {
+  async cancel(id: string): Promise<void> {
     await this.collection.updateOne({ id }, { 
       $set: { 
         status: "CANCELLED"
@@ -22,7 +21,7 @@ export class MongoOrderRepository implements OrderRepositoryPort {
     });
   }
 
-  async delete(id: UUID): Promise<void> {
+  async delete(id: string): Promise<void> {
     await this.collection.deleteOne({ id });
   }
 }
