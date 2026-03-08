@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { OrderController } from './order.controller.js';
 import { OrderService } from './order.service.js';
-import { EVENT_BUS, KAFKA_PRODUCER, MONGO_COLLECTION, ORDER_CACHE, ORDER_REPOSITORY, REDIS_CLIENT, TELEMETRY } from './token.js';
+import { EVENT_BUS, KAFKA_PRODUCER, MONGO_COLLECTION, MONGO_CONNECTION, ORDER_CACHE, ORDER_REPOSITORY, REDIS_CONNECTION, TELEMETRY } from './token.js';
 import { Collection, MongoClient } from 'mongodb';
 import { Order } from '../../../../domain/order.js';
 import { config } from '../../../../infrastructure/config.js';
@@ -15,38 +15,47 @@ import { GetOrderUseCase } from '../../../../application/get-order.js';
 import { CreateOrderUseCase } from '../../../../application/create-order.js';
 import { CancelOrderUseCase } from '../../../../application/cancel-order.js';
 import { DeleteOrderUseCase } from '../../../../application/delete-order.js';
-
-
+import { MongoConnection } from '../../../outbound/mongodb/infra/connection.js';
+import { RedisConnection } from '../../../outbound/redis/infra/connection.js';
+import { KafkaConnection } from '../../../outbound/kafka/infra/connection.js';
+import { ClientShutdownService } from './infra/client-shutdown.service.js';
 
 @Module({
   imports: [],
   controllers: [OrderController],
   providers: [
     OrderService,
+    ClientShutdownService,
     {
-      provide: MONGO_COLLECTION,
-      useFactory: async (): Promise<Collection<Order>> => {
-        const mongo = new MongoClient(config.mongoUri);
+      provide: MONGO_CONNECTION,
+      useFactory: async (): Promise<MongoConnection> => {
+        const mongo = new MongoConnection(config.mongoUri, config.dbName);
         await mongo.connect()
-        return mongo.db(config.dbName).collection<Order>("orders");
+        return mongo;
       }
     },
     {
-      provide: REDIS_CLIENT,
-      useFactory: (): Redis => {
-        const redis = new Redis(config.redisUrl);
+      provide: MONGO_COLLECTION,
+      useFactory: async (mongo: MongoConnection): Promise<Collection<Order>> => {
+        return mongo.getCollection<Order>(config.service);
+      },
+      inject: [MONGO_CONNECTION]
+    },
+    {
+      provide: REDIS_CONNECTION,
+      useFactory: (): RedisConnection => {
+        const redis = new RedisConnection(config.redisUrl);
         return redis
       }
     },
     {
       provide: KAFKA_PRODUCER,
       useFactory: async (): Promise<Producer> => {
-        const kafka = new Kafka({
-          clientId: `${config.kafkaClientId}-orders`,
-          brokers: config.kafkaBrokers,
-        });
-        const producer = kafka.producer();
-        await producer.connect();
+        const kafka = new KafkaConnection(
+          `${config.kafkaClientId}-${config.service}`,
+          config.kafkaBrokers
+        );
+        const producer = await kafka.producer();
         return producer
       }
     },
@@ -74,38 +83,38 @@ import { DeleteOrderUseCase } from '../../../../application/delete-order.js';
     },
     {
       provide: ORDER_CACHE,
-      useFactory: (redis: Redis) => {
-        return new RedisOrderCache(redis);
+      useFactory: (redisConnection: RedisConnection) => {
+        return new RedisOrderCache(redisConnection.getClient());
       },
-      inject: [REDIS_CLIENT]
+      inject: [REDIS_CONNECTION]
     },
     {
       provide: GetOrderUseCase,
       useFactory: (repository, cache, telemetry) => {
         return new GetOrderUseCase(repository, cache, telemetry);
       },
-      inject: [ORDER_REPOSITORY, REDIS_CLIENT, TELEMETRY]
+      inject: [ORDER_REPOSITORY, ORDER_CACHE, TELEMETRY]
     },
     {
       provide: CreateOrderUseCase,
       useFactory: (repository, cache, eventBus, telemetry) => {
         return new CreateOrderUseCase(repository, cache, eventBus, telemetry);
       },
-      inject: [ORDER_REPOSITORY, REDIS_CLIENT, EVENT_BUS, TELEMETRY]
+      inject: [ORDER_REPOSITORY, ORDER_CACHE, EVENT_BUS, TELEMETRY]
     },
     {
       provide: CancelOrderUseCase,
       useFactory: (repository, cache, eventBus, telemetry) => {
         return new CancelOrderUseCase(repository, cache, eventBus, telemetry);
       },
-      inject: [ORDER_REPOSITORY, REDIS_CLIENT, EVENT_BUS, TELEMETRY]
+      inject: [ORDER_REPOSITORY, ORDER_CACHE, EVENT_BUS, TELEMETRY]
     },
     {
       provide: DeleteOrderUseCase,
       useFactory: (repository, cache, eventBus, telemetry) => {
         return new DeleteOrderUseCase(repository, cache, eventBus, telemetry);
       },
-      inject: [ORDER_REPOSITORY, REDIS_CLIENT, EVENT_BUS, TELEMETRY]
+      inject: [ORDER_REPOSITORY, ORDER_CACHE, EVENT_BUS, TELEMETRY]
     }
   ],
 })

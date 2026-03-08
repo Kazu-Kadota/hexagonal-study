@@ -1,16 +1,21 @@
 import { config } from "./infrastructure/config.js";
-import { startTelemetry } from "./infrastructure/telemetry.js";
 import { bootstrapExpress } from "./adapters/inbound/http/express/bootstrap.js";
 import { bootstrapNest } from "./adapters/inbound/http/nest/bootstrap.js";
+import { TelemetryConnection } from "./adapters/outbound/telemetry/infra/connection.js";
 
 async function bootstrap() {
-  startTelemetry("orders-service", config.otelEndpoint);
+  const telemetry = new TelemetryConnection("orders-service", config.otelEndpoint);
+  telemetry.start();
 
   switch (config.framework) {
     case ("express"):
       await bootstrapExpress();
+      break;
     case ("nest"):
       await bootstrapNest();
+      break;
+    default:
+      throw new Error("Invalid framework");
   }
 }
 

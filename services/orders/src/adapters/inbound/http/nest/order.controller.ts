@@ -11,8 +11,10 @@ export class OrderController {
 
   @Post("orders")
   @HttpCode(201)
-  async createOrder(@Body() body: CreateOrderDto): Promise<void> {
-    await this.orderService.createOrder(body);
+  async createOrder(@Body() body: CreateOrderDto): Promise<GetOrderOutputDto> {
+    const order = await this.orderService.createOrder(body);
+    const output = OrderMapper.toGetOrderOutputDto(order);
+    return output;
   }
 
   @Get("orders/:id")
