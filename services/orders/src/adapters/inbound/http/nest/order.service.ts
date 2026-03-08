@@ -1,0 +1,36 @@
+import { Injectable } from "@nestjs/common";
+import { CancelOrderUseCase } from "../../../../application/cancel-order.js";
+import { DeleteOrderUseCase } from "../../../../application/delete-order.js";
+import { GetOrderUseCase } from "../../../../application/get-order.js";
+import { CreateOrderUseCase } from "../../../../application/create-order.js";
+import { Order } from "../../../../domain/order.js";
+
+@Injectable()
+export class OrderService {
+  constructor(
+    private readonly createOrderUseCase: CreateOrderUseCase,
+    private readonly getOrderUseCase: GetOrderUseCase,
+    private readonly cancelOrderUseCase: CancelOrderUseCase,
+    private readonly deleteOrderUseCase: DeleteOrderUseCase
+  ) {}
+
+  async createOrder(input: {
+    customerId: string;
+    amount: number;
+    currency: string;
+  }): Promise<void> {
+    await this.createOrderUseCase.execute(input);
+  }
+
+  async getOrder(id: string): Promise<Order | null> {
+    return await this.getOrderUseCase.execute(id);
+  }
+
+  async cancelOrder(id: string): Promise<void> {
+    await this.cancelOrderUseCase.execute(id);
+  }
+
+  async deleteOrder(id: string): Promise<void> {
+    await this.deleteOrderUseCase.execute(id);
+  }
+}
