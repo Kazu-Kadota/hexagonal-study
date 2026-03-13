@@ -9,7 +9,7 @@ export async function bootstrapNest() {
   app.useGlobalPipes(new ValidationPipe());
   app.enableShutdownHooks();
   
-  await app.listen(config.port, () => {
-    console.log(`${config.service} service on :${config.port}`);
+  await app.listen(config.app.port, () => {
+    console.log(`${config.app.name} service on :${config.app.port}`);
   });
 }

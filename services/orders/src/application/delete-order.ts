@@ -1,15 +1,18 @@
-import { EventBusPort, OrderCachePort, OrderRepositoryPort, TelemetryPort } from "./ports.js";
+import { IOrdersCachePort } from "./ports/outbound/cache/cache.js";
+import { IOrdersRepositoryWritePort } from "./ports/outbound/database/database-write.js";
+import { IOrdersEventBusPort } from "./ports/outbound/messaging/messaging.js";
+import { IOrdersTelemetryPort } from "./ports/outbound/telemetry/telemetry.js";
 
 export class DeleteOrderUseCase {
   constructor(
-    private readonly orderRepository: OrderRepositoryPort,
-    private readonly cache: OrderCachePort,
-    private readonly eventBus: EventBusPort,
-    private readonly telemetry: TelemetryPort
+    private readonly writeOrderRepository: IOrdersRepositoryWritePort,
+    private readonly cache: IOrdersCachePort,
+    private readonly eventBus: IOrdersEventBusPort,
+    private readonly telemetry: IOrdersTelemetryPort,
   ) {}
 
   private async deleteOrder(id: string): Promise<void> {
-    await this.orderRepository.delete(id);
+    await this.writeOrderRepository.delete(id);
     await this.eventBus.publish("order.deleted", { 
       type: "order.deleted",
       payload: {
@@ -28,18 +31,17 @@ export class DeleteOrderUseCase {
         return;
       }
 
-      const order = await this.orderRepository.findById(id);
+      const order = await this.writeOrderRepository.findById(id);
 
-      if (!order) {
-        throw new Error("Order not found");
-      }
+      if (!order) throw new Error("Order not found");
 
-      await this.orderRepository.delete(id);
+      await this.writeOrderRepository.delete(id);
       await this.eventBus.publish("order.deleted", { 
         type: "order.deleted",
         payload: {
           orderId: order.id,
-        }});
+        }
+      });
     });
   }
 }

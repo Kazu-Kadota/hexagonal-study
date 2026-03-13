@@ -1,0 +1,40 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/orders"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Status {
+  pending
+  created
+  cancelled
+}
+
+enum Currency {
+  brl
+  usd
+  cad
+  eur
+}
+
+model Order {
+  id          String   @id @default(uuid())
+  customerId  String
+  amount      Float
+  currency    Currency
+  status      Status
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+
+  @@index([id])
+  @@map("orders")
+}
