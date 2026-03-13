@@ -71,7 +71,7 @@ We initialize OpenTelemetry early and wrap use-case execution inside spans.
 1. Add `CancelOrderUseCase` and publish `order.cancelled`.
 2. Add idempotency key handling in payment creation.
 3. Replace Express adapter with NestJS controller while keeping use cases unchanged.
-4. Add a second cache adapter (in-memory) and switch by environment variable.
+4. Add a second database adapter and switch by environment variable.
 
 ## Architecture check questions
 
