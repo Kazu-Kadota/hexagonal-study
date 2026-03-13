@@ -1,48 +1,71 @@
 import express from "express";
 import { config } from "../../../../infrastructure/config.js";
 import { Order } from "../../../../domain/order.js";
-import { MongoOrderRepository } from "../../../outbound/mongodb/order-repository.js";
-import { RedisOrderCache } from "../../../outbound/redis/order-cache.js";
-import { KafkaEventBus } from "../../../outbound/kafka/event-bus.js";
-import { OTelTelemetry } from "../../../outbound/telemetry/otel-telemetry.js";
+import { MongoOrderRepositoryRead } from "../../../outbound/database/mongodb/read.js";
+import { RedisOrderCache } from "../../../outbound/cache/redis/order-cache.js";
+import { KafkaEventBus } from "../../../outbound/messaging/kafka/event-bus.js";
+import { OTelTelemetry } from "../../../outbound/telemetry/otel/otel-telemetry.js";
 import { CreateOrderUseCase } from "../../../../application/create-order.js";
 import { GetOrderUseCase } from "../../../../application/get-order.js";
 import { CancelOrderUseCase } from "../../../../application/cancel-order.js";
 import { DeleteOrderUseCase } from "../../../../application/delete-order.js";
 import { buildOrderRouter } from "./order-controller.js";
-import { MongoConnection } from "../../../outbound/mongodb/infra/connection.js";
-import { RedisConnection } from "../../../outbound/redis/infra/connection.js";
-import { KafkaConnection } from "../../../outbound/kafka/infra/connection.js";
+import { MongoConnection } from "../../../../infrastructure/database/mongodb/connection.js";
+import { RedisConnection } from "../../../../infrastructure/cache/redis/connection.js";
+import { KafkaConnection } from "../../../../infrastructure/messaging/kafka/connection.js";
+import { PostgresConnection } from "../../../../infrastructure/database/postgres/connection.js";
+import { PostgresOrderRepositoryWrite } from "../../../outbound/database/postgres/write.js";
 
 export async function bootstrapExpress() {
-  const mongoConnection = new MongoConnection(config.mongoUri, config.dbName);
-  await mongoConnection.connect();
-  const collection = mongoConnection.getCollection<Order>(config.service);
+  const postgresUrl = `postgresql://${config.database.write.user}:${config.database.write.password}@${config.database.write.host}:${config.database.write.port}/orders`;
+  const postgresConnection = new PostgresConnection(postgresUrl)
+  await postgresConnection.connect();
+  const prismaClient = postgresConnection.getClient();
 
-  const redisConnection = new RedisConnection(config.redisUrl)
+  const mongoConnection = new MongoConnection(config.database.read.uri, 'orders');
+  await mongoConnection.connect();
+  const collection = mongoConnection.getClient().collection<Order>('orders');
+
+  const redisConnection = new RedisConnection(config.cache.redis.url)
   const redis = redisConnection.connect();
 
   const kafkaConnection = new KafkaConnection(
-    `${config.kafkaClientId}-${config.service}`,
-    config.kafkaBrokers
+    `${config.messaging.kafka.clientId}-orders`,
+    config.messaging.kafka.brokers
   );
   await kafkaConnection.connect();
   const producer = await kafkaConnection.producer();
 
-  const repository = new MongoOrderRepository(collection);
+  const writeRepository = new PostgresOrderRepositoryWrite(prismaClient);
+  const readRepository = new MongoOrderRepositoryRead(collection);
   const cache = new RedisOrderCache(redis);
   const eventBus = new KafkaEventBus(producer);
   const telemetry = new OTelTelemetry();
 
   const createOrderUseCase = new CreateOrderUseCase(
-    repository,
+    writeRepository,
     cache,
     eventBus,
     telemetry,
   );
-  const getOrderUseCase = new GetOrderUseCase(repository, cache, telemetry);
-  const cancelOrderUseCase = new CancelOrderUseCase(repository, cache, eventBus, telemetry);
-  const deleteOrderUseCase = new DeleteOrderUseCase(repository, cache, eventBus, telemetry);
+  const getOrderUseCase = new GetOrderUseCase(
+    readRepository,
+    cache,
+    telemetry
+  );
+  const cancelOrderUseCase = new CancelOrderUseCase(
+    readRepository,
+    writeRepository,
+    cache,
+    eventBus,
+    telemetry
+  );
+  const deleteOrderUseCase = new DeleteOrderUseCase(
+    writeRepository,
+    cache,
+    eventBus,
+    telemetry
+  );
 
   const appExpress = express();
   appExpress.use(express.json());
@@ -53,8 +76,8 @@ export async function bootstrapExpress() {
     deleteOrderUseCase
   ));
 
-  const server = appExpress.listen(config.port, () => {
-    console.log(`${config.service} service on :${config.port}`);
+  const server = appExpress.listen(config.app.port, () => {
+    console.log(`${config.app.name} service on :${config.app.port}`);
   });
 
   let shuttingDown = false;
@@ -77,6 +100,7 @@ export async function bootstrapExpress() {
       }
 
       const results = await Promise.allSettled([
+        postgresConnection.close(),
         mongoConnection.close(),
         redisConnection.close(),
         kafkaConnection.close(),

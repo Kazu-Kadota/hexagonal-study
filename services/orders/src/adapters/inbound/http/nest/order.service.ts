@@ -3,7 +3,7 @@ import { CancelOrderUseCase } from "../../../../application/cancel-order.js";
 import { DeleteOrderUseCase } from "../../../../application/delete-order.js";
 import { GetOrderUseCase } from "../../../../application/get-order.js";
 import { CreateOrderUseCase } from "../../../../application/create-order.js";
-import { Order } from "../../../../domain/order.js";
+import { CurrencyType, OrderDTO } from "../../../../domain/order.js";
 
 @Injectable()
 export class OrderService {
@@ -24,12 +24,12 @@ export class OrderService {
   async createOrder(input: {
     customerId: string;
     amount: number;
-    currency: string;
-  }): Promise<Order> {
+    currency: CurrencyType;
+  }): Promise<OrderDTO> {
     return await this.createOrderUseCase.execute(input);
   }
 
-  async getOrder(id: string): Promise<Order | null> {
+  async getOrder(id: string): Promise<OrderDTO> {
     return await this.getOrderUseCase.execute(id);
   }
 
