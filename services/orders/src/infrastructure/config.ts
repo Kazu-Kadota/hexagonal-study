@@ -7,12 +7,19 @@ const schema = z.object({
   }),
   database: z.object({
     write: z.object({
+      provider: z.enum(["postgres", "mongodb"]).default("postgres"),
       host: z.string().default("localhost"),
       port: z.coerce.number().int().positive().default(5432),
       user: z.string().default("postgres"),
       password: z.string().default("postgres"),
+      uri: z.string().default("mongodb://localhost:27017"),
     }),
     read: z.object({
+      provider: z.enum(["postgres", "mongodb"]).default("mongodb"),
+      host: z.string().default("localhost"),
+      port: z.coerce.number().int().positive().default(5432),
+      user: z.string().default("postgres"),
+      password: z.string().default("postgres"),
       uri: z.string().default("mongodb://localhost:27017"),
     })
   }),
@@ -41,12 +48,19 @@ export const config = schema.parse({
   },
   database: {
     write: {
+      provider: process.env.ORDERS_DB_WRITE_ADAPTER ?? "postgres",
       host: process.env.POSTGRES_HOST ?? "localhost",
       port: process.env.POSTGRES_PORT ?? 5432,
       user: process.env.POSTGRES_USER ?? "postgres",
       password: process.env.POSTGRES_PASSWORD ?? "postgres",
+      uri: process.env.MONGO_URI ?? "mongodb://localhost:27017",
     },
     read: {
+      provider: process.env.ORDERS_DB_READ_ADAPTER ?? "mongodb",
+      host: process.env.POSTGRES_HOST ?? "localhost",
+      port: process.env.POSTGRES_PORT ?? 5432,
+      user: process.env.POSTGRES_USER ?? "postgres",
+      password: process.env.POSTGRES_PASSWORD ?? "postgres",
       uri: process.env.MONGO_URI ?? "mongodb://localhost:27017",
     }
   },

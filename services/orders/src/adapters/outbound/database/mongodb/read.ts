@@ -1,11 +1,11 @@
 import type { Collection, WithId } from "mongodb";
-import type { Order, OrderStatusType } from "../../../../domain/order.js";
+import type { OrderDTO, OrderStatusType } from "../../../../domain/order.js";
 import { FindByCustomerIdProjection, FindByIdProjection, FindByStatusProjection, IOrdersRepositoryReadPort, PaginatedOrders, PaginationParameters } from "../../../../application/ports/outbound/database/database-read.js";
 
 export class MongoOrderRepositoryRead implements IOrdersRepositoryReadPort {
-  constructor(private readonly collection: Collection<Order>) {}
+  constructor(private readonly collection: Collection<OrderDTO>) {}
 
-  private async paginationFind(query: object, pagination: PaginationParameters): Promise<[WithId<Order>[], number]> {
+  private async paginationFind(query: object, pagination: PaginationParameters): Promise<[WithId<OrderDTO>[], number]> {
     const [docs, total] = await Promise.all([
       this.collection
         .find(query)
@@ -21,16 +21,14 @@ export class MongoOrderRepositoryRead implements IOrdersRepositoryReadPort {
   async findById(id: string): Promise<FindByIdProjection | null> {
     const order = await this.collection.findOne({ id });
     if (order) {
-      const orderDTO = order.toDTO()
-      
       return { 
-        amount: orderDTO.amount,
-        createdAt: orderDTO.createdAt,
-        currency: orderDTO.currency,
-        customerId: orderDTO.customerId,
-        id: orderDTO.id,
-        status: orderDTO.status,
-        updatedAt: orderDTO.updatedAt,
+        amount: order.amount,
+        createdAt: order.createdAt,
+        currency: order.currency,
+        customerId: order.customerId,
+        id: order.id,
+        status: order.status,
+        updatedAt: order.updatedAt,
       };
     }
 
@@ -42,12 +40,10 @@ export class MongoOrderRepositoryRead implements IOrdersRepositoryReadPort {
 
     return {
       data: docs.map(doc => {
-        const orderDTO = doc.toDTO();
-
         return {
-          customerId: orderDTO.customerId,
-          id: orderDTO.id,
-          status: orderDTO.status,
+          customerId: doc.customerId,
+          id: doc.id,
+          status: doc.status,
         }
       }),
       page: pagination.page,
@@ -62,12 +58,10 @@ export class MongoOrderRepositoryRead implements IOrdersRepositoryReadPort {
 
     return {
       data: docs.map(doc => {
-        const orderDTO = doc.toDTO();
-
         return {
-          customerId: orderDTO.customerId,
-          id: orderDTO.id,
-          status: orderDTO.status,
+          customerId: doc.customerId,
+          id: doc.id,
+          status: doc.status,
         }
       }),
       page: pagination.page,

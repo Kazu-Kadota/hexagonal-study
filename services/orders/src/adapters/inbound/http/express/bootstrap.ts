@@ -1,6 +1,6 @@
 import express from "express";
 import { config } from "../../../../infrastructure/config.js";
-import { Order } from "../../../../domain/order.js";
+import { OrderDTO } from "../../../../domain/order.js";
 import { MongoOrderRepositoryRead } from "../../../outbound/database/mongodb/read.js";
 import { RedisOrderCache } from "../../../outbound/cache/redis/order-cache.js";
 import { KafkaEventBus } from "../../../outbound/messaging/kafka/event-bus.js";
@@ -15,16 +15,30 @@ import { RedisConnection } from "../../../../infrastructure/cache/redis/connecti
 import { KafkaConnection } from "../../../../infrastructure/messaging/kafka/connection.js";
 import { PostgresConnection } from "../../../../infrastructure/database/postgres/connection.js";
 import { PostgresOrderRepositoryWrite } from "../../../outbound/database/postgres/write.js";
+import { MongoOrderRepositoryWrite } from "../../../outbound/database/mongodb/write.js";
+import { PostgresOrderRepositoryRead } from "../../../outbound/database/postgres/read.js";
 
 export async function bootstrapExpress() {
-  const postgresUrl = `postgresql://${config.database.write.user}:${config.database.write.password}@${config.database.write.host}:${config.database.write.port}/orders`;
-  const postgresConnection = new PostgresConnection(postgresUrl)
-  await postgresConnection.connect();
-  const prismaClient = postgresConnection.getClient();
+  const postgresWriteUrl = `postgresql://${config.database.write.user}:${config.database.write.password}@${config.database.write.host}:${config.database.write.port}/orders`;
+  const postgresReadUrl = `postgresql://${config.database.read.user}:${config.database.read.password}@${config.database.read.host}:${config.database.read.port}/orders`;
 
-  const mongoConnection = new MongoConnection(config.database.read.uri, 'orders');
-  await mongoConnection.connect();
-  const collection = mongoConnection.getClient().collection<Order>('orders');
+  const postgresWriteConnection = new PostgresConnection(postgresWriteUrl);
+  const postgresReadConnection = new PostgresConnection(postgresReadUrl);
+  const mongoWriteConnection = new MongoConnection(config.database.write.uri, 'orders');
+  const mongoReadConnection = new MongoConnection(config.database.read.uri, 'orders');
+
+  if (config.database.write.provider === "postgres") {
+    await postgresWriteConnection.connect();
+  } else {
+    await mongoWriteConnection.connect();
+  }
+
+  
+  if (config.database.read.provider === "postgres") {
+    await postgresReadConnection.connect();
+  } else {
+    await mongoReadConnection.connect();
+  }
 
   const redisConnection = new RedisConnection(config.cache.redis.url)
   const redis = redisConnection.connect();
@@ -36,8 +50,13 @@ export async function bootstrapExpress() {
   await kafkaConnection.connect();
   const producer = await kafkaConnection.producer();
 
-  const writeRepository = new PostgresOrderRepositoryWrite(prismaClient);
-  const readRepository = new MongoOrderRepositoryRead(collection);
+  const writeRepository = config.database.write.provider === "postgres"
+    ? new PostgresOrderRepositoryWrite(postgresWriteConnection.getClient())
+    : new MongoOrderRepositoryWrite(mongoWriteConnection.getClient().collection<OrderDTO>('orders'));
+
+  const readRepository = config.database.read.provider === "postgres"
+    ? new PostgresOrderRepositoryRead(postgresReadConnection.getClient())
+    : new MongoOrderRepositoryRead(mongoReadConnection.getClient().collection<OrderDTO>('orders'));
   const cache = new RedisOrderCache(redis);
   const eventBus = new KafkaEventBus(producer);
   const telemetry = new OTelTelemetry();
@@ -100,8 +119,10 @@ export async function bootstrapExpress() {
       }
 
       const results = await Promise.allSettled([
-        postgresConnection.close(),
-        mongoConnection.close(),
+        postgresWriteConnection.close(),
+        postgresReadConnection.close(),
+        mongoWriteConnection.close(),
+        mongoReadConnection.close(),
         redisConnection.close(),
         kafkaConnection.close(),
       ]);

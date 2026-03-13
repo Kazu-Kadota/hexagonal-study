@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
 import { OrderController } from './order.controller.js';
 import { OrderService } from './order.service.js';
-import { EVENT_BUS, KAFKA_CONNECTION, KAFKA_PRODUCER, MONGO_COLLECTION, MONGO_CONNECTION, ORDER_CACHE, POSTGRES_CONNECTION, POSTGRESS_PRISMA_CLIENT, READ_ORDER_REPOSITORY, REDIS_CONNECTION, TELEMETRY, WRITE_ORDER_REPOSITORY } from './token.js';
+import { EVENT_BUS, KAFKA_CONNECTION, KAFKA_PRODUCER, MONGO_READ_COLLECTION, MONGO_READ_CONNECTION, MONGO_WRITE_COLLECTION, MONGO_WRITE_CONNECTION, ORDER_CACHE, POSTGRES_READ_CONNECTION, POSTGRES_WRITE_CONNECTION, POSTGRES_READ_PRISMA_CLIENT, POSTGRES_WRITE_PRISMA_CLIENT, READ_ORDER_REPOSITORY, REDIS_CONNECTION, TELEMETRY, WRITE_ORDER_REPOSITORY } from './token.js';
 import { Collection } from 'mongodb';
-import { Order, OrderDTO } from '../../../../domain/order.js';
+import { OrderDTO } from '../../../../domain/order.js';
 import { config } from '../../../../infrastructure/config.js';
 import { KafkaEventBus } from '../../../outbound/messaging/kafka/event-bus.js';
 import { OTelTelemetry } from '../../../outbound/telemetry/otel/otel-telemetry.js';
@@ -21,6 +21,12 @@ import { Producer } from 'kafkajs';
 import { PostgresConnection } from '../../../../infrastructure/database/postgres/connection.js';
 import { PrismaClient } from '../../../../generated/orders/client.js';
 import { PostgresOrderRepositoryWrite } from '../../../outbound/database/postgres/write.js';
+import { IOrdersRepositoryWritePort } from '../../../../application/ports/outbound/database/database-write.js';
+import { MongoOrderRepositoryWrite } from '../../../outbound/database/mongodb/write.js';
+import { IOrdersCachePort } from '../../../../application/ports/outbound/cache/cache.js';
+import { IOrdersEventBusPort } from '../../../../application/ports/outbound/messaging/messaging.js';
+import { IOrdersTelemetryPort } from '../../../../application/ports/outbound/telemetry/telemetry.js';
+import { IOrdersRepositoryReadPort } from '../../../../application/ports/outbound/database/database-read.js';
 
 @Module({
   imports: [],
@@ -29,35 +35,74 @@ import { PostgresOrderRepositoryWrite } from '../../../outbound/database/postgre
     OrderService,
     ClientShutdownService,
     {
-      provide: POSTGRES_CONNECTION,
+      provide: POSTGRES_READ_CONNECTION,
       useFactory: async (): Promise<PostgresConnection> => {
         const postgresUrl = `postgresql://${config.database.write.user}:${config.database.write.password}@${config.database.write.host}:${config.database.write.port}/orders`;
         const postgres = new PostgresConnection(postgresUrl);
-        await postgres.connect();
+        if (config.database.read.provider === 'postgres') {
+          await postgres.connect();
+        }
         return postgres;
       }
     },
     {
-      provide: POSTGRESS_PRISMA_CLIENT,
-      useFactory: async (postgresConnection: PostgresConnection): Promise<PrismaClient> => {
-        return postgresConnection.getClient();
+      provide: POSTGRES_READ_PRISMA_CLIENT,
+      useFactory: async (postgresConnection: PostgresConnection): Promise<PrismaClient | null> => {
+        return config.database.read.provider === 'postgres' ? postgresConnection.getClient() : null;
       },
-      inject: [POSTGRES_CONNECTION]
+      inject: [POSTGRES_READ_CONNECTION]
     },
     {
-      provide: MONGO_CONNECTION,
+      provide: POSTGRES_WRITE_CONNECTION,
+      useFactory: async (): Promise<PostgresConnection> => {
+        const postgresUrl = `postgresql://${config.database.write.user}:${config.database.write.password}@${config.database.write.host}:${config.database.write.port}/orders`;
+        const postgres = new PostgresConnection(postgresUrl);
+        if (config.database.write.provider === 'postgres') {
+          await postgres.connect();
+        }
+        return postgres;
+      }
+    },
+    {
+      provide: POSTGRES_WRITE_PRISMA_CLIENT,
+      useFactory: async (postgresConnection: PostgresConnection): Promise<PrismaClient | null> => {
+        return config.database.write.provider === 'postgres' ? postgresConnection.getClient() : null;
+      },
+      inject: [POSTGRES_WRITE_CONNECTION]
+    },
+    {
+      provide: MONGO_READ_CONNECTION,
       useFactory: async (): Promise<MongoConnection> => {
         const mongo = new MongoConnection(config.database.read.uri, 'orders');
-        await mongo.connect();
+        if (config.database.read.provider === 'mongodb') {
+          await mongo.connect();
+        }
         return mongo;
       }
     },
     {
-      provide: MONGO_COLLECTION,
-      useFactory: async (mongoConnection: MongoConnection): Promise<Collection<OrderDTO>> => {
-        return mongoConnection.getClient().collection<OrderDTO>('orders');
+      provide: MONGO_READ_COLLECTION,
+      useFactory: async (mongoConnection: MongoConnection): Promise<Collection<OrderDTO> | null> => {
+        return config.database.read.provider === 'mongodb' ? mongoConnection.getClient().collection<OrderDTO>('orders') : null;
       },
-      inject: [MONGO_CONNECTION]
+      inject: [MONGO_READ_CONNECTION]
+    },
+    {
+      provide: MONGO_WRITE_CONNECTION,
+      useFactory: async (): Promise<MongoConnection> => {
+        const mongo = new MongoConnection(config.database.read.uri, 'orders');
+        if (config.database.write.provider === 'mongodb') {
+          await mongo.connect();
+        }
+        return mongo;
+      }
+    },
+    {
+      provide: MONGO_WRITE_COLLECTION,
+      useFactory: async (mongoConnection: MongoConnection): Promise<Collection<OrderDTO> | null> => {
+        return config.database.write.provider === 'mongodb' ? mongoConnection.getClient().collection<OrderDTO>('orders') : null;
+      },
+      inject: [MONGO_WRITE_CONNECTION]
     },
     {
       provide: REDIS_CONNECTION,
@@ -87,17 +132,29 @@ import { PostgresOrderRepositoryWrite } from '../../../outbound/database/postgre
     },
     {
       provide: WRITE_ORDER_REPOSITORY,
-      useFactory: (prismaClient: PrismaClient) => {
-        return new PostgresOrderRepositoryWrite(prismaClient);
+      useFactory: (prismaClient: PrismaClient | null, collection: Collection<OrderDTO> | null): IOrdersRepositoryWritePort => {
+        if (config.database.write.provider === 'postgres') {
+          if (!prismaClient) throw new Error('Postgres write client is not available');
+          return new PostgresOrderRepositoryWrite(prismaClient);
+        }
+
+        if (!collection) throw new Error('Mongo write collection is not available');
+        return new MongoOrderRepositoryWrite(collection);
       },
-      inject: [POSTGRESS_PRISMA_CLIENT]
+      inject: [POSTGRES_WRITE_PRISMA_CLIENT, MONGO_WRITE_COLLECTION]
     },
     {
       provide: READ_ORDER_REPOSITORY,
-      useFactory: (collection: Collection<Order>) => {
-        return new MongoOrderRepositoryRead(collection);
+      useFactory: (prismaClient: PrismaClient | null, collection: Collection<OrderDTO> | null): IOrdersRepositoryWritePort => {
+        if (config.database.read.provider === 'postgres') {
+          if (!prismaClient) throw new Error('Postgres read client is not available');
+          return new PostgresOrderRepositoryWrite(prismaClient);
+        }
+
+        if (!collection) throw new Error('Mongo read collection is not available');
+        return new MongoOrderRepositoryWrite(collection);
       },
-      inject: [MONGO_COLLECTION]
+      inject: [POSTGRES_READ_PRISMA_CLIENT, MONGO_READ_COLLECTION]
     },
     {
       provide: ORDER_CACHE,
@@ -124,10 +181,10 @@ import { PostgresOrderRepositoryWrite } from '../../../outbound/database/postgre
     {
       provide: CreateOrderUseCase,
       useFactory: (
-        writeRepository: PostgresOrderRepositoryWrite,
-        cache: RedisOrderCache,
-        eventBus: KafkaEventBus,
-        telemetry: OTelTelemetry
+        writeRepository: IOrdersRepositoryWritePort,
+        cache: IOrdersCachePort,
+        eventBus: IOrdersEventBusPort,
+        telemetry: IOrdersTelemetryPort
       ) => {
         return new CreateOrderUseCase(
           writeRepository,
@@ -146,9 +203,9 @@ import { PostgresOrderRepositoryWrite } from '../../../outbound/database/postgre
     {
       provide: GetOrderUseCase,
       useFactory: (
-        readRepository: MongoOrderRepositoryRead,
-        cache: RedisOrderCache,
-        telemetry: OTelTelemetry
+        readRepository: IOrdersRepositoryReadPort,
+        cache: IOrdersCachePort,
+        telemetry: IOrdersTelemetryPort
       ) => {
         return new GetOrderUseCase(
           readRepository,
@@ -165,11 +222,11 @@ import { PostgresOrderRepositoryWrite } from '../../../outbound/database/postgre
     {
       provide: CancelOrderUseCase,
       useFactory: (
-        writeRepository: PostgresOrderRepositoryWrite,
-        readRepository: MongoOrderRepositoryRead,
-        cache: RedisOrderCache,
-        eventBus: KafkaEventBus,
-        telemetry: OTelTelemetry
+        readRepository: IOrdersRepositoryReadPort,
+        writeRepository: IOrdersRepositoryWritePort,
+        cache: IOrdersCachePort,
+        eventBus: IOrdersEventBusPort,
+        telemetry: IOrdersTelemetryPort
       ) => {
         return new CancelOrderUseCase(
           readRepository,
@@ -190,10 +247,10 @@ import { PostgresOrderRepositoryWrite } from '../../../outbound/database/postgre
     {
       provide: DeleteOrderUseCase,
       useFactory: (
-        writeRepository: PostgresOrderRepositoryWrite,
-        cache: RedisOrderCache,
-        eventBus: KafkaEventBus,
-        telemetry: OTelTelemetry
+        writeRepository: IOrdersRepositoryWritePort,
+        cache: IOrdersCachePort,
+        eventBus: IOrdersEventBusPort,
+        telemetry: IOrdersTelemetryPort
       ) => {
         return new DeleteOrderUseCase(
           writeRepository,
