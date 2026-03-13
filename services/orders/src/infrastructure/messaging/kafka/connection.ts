@@ -1,6 +1,7 @@
 import { Consumer, Kafka, Producer } from "kafkajs";
+import { MessagingConnectionPort } from "../port.js";
 
-export class KafkaConnection {
+export class KafkaConnection implements MessagingConnectionPort {
   private client: Kafka | null = null;
   private connectedProducer: Producer | null = null;
   private connectedConsumers: Consumer[] = [];
@@ -18,6 +19,30 @@ export class KafkaConnection {
       clientId: this.clientId,
     });
     
+    return this.client
+  }
+
+  async close(): Promise<void> {
+    if (!this.client) return;
+
+    const closeOperations: Promise<unknown>[] = [];
+
+    if (this.connectedProducer) {
+      closeOperations.push(this.connectedProducer.disconnect());
+      this.connectedProducer = null;
+    }
+
+    if (this.connectedConsumers.length) {
+      closeOperations.push(...this.connectedConsumers.map((consumer) => consumer.disconnect()));
+      this.connectedConsumers = [];
+    }
+
+    await Promise.allSettled(closeOperations);
+    this.client = null;
+  }
+
+  getClient(): Kafka {
+    if (!this.client) throw new Error("Kafka Client is not set")
     return this.client
   }
 
@@ -45,24 +70,5 @@ export class KafkaConnection {
     await consumer.connect();
     this.connectedConsumers.push(consumer);
     return consumer;
-  }
-
-  async close(): Promise<void> {
-    if (!this.client) return;
-
-    const closeOperations: Promise<unknown>[] = [];
-
-    if (this.connectedProducer) {
-      closeOperations.push(this.connectedProducer.disconnect());
-      this.connectedProducer = null;
-    }
-
-    if (this.connectedConsumers.length) {
-      closeOperations.push(...this.connectedConsumers.map((consumer) => consumer.disconnect()));
-      this.connectedConsumers = [];
-    }
-
-    await Promise.allSettled(closeOperations);
-    this.client = null;
   }
 }

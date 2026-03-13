@@ -1,6 +1,7 @@
 import { Redis } from "ioredis";
+import { CacheConnectionPort } from "../ports.js";
 
-export class RedisConnection {
+export class RedisConnection implements CacheConnectionPort {
   private client: Redis | null = null;
 
   constructor(
@@ -15,14 +16,6 @@ export class RedisConnection {
     return this.client
   }
 
-  getClient(): Redis {
-    if (!this.client) {
-      throw new Error("RedisConnection is not connected");
-    };
-    
-    return this.client
-  }
-
   async close(): Promise<void> {
     if (!this.client) return;
 
@@ -32,5 +25,13 @@ export class RedisConnection {
       this.client.disconnect();
     }
     this.client = null;
+  }
+
+  getClient(): Redis {
+    if (!this.client) {
+      throw new Error("RedisConnection is not connected");
+    };
+    
+    return this.client
   }
 }
