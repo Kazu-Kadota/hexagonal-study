@@ -24,6 +24,7 @@
     "@opentelemetry/exporter-trace-otlp-http": "^0.213.0",
     "@opentelemetry/resources": "^2.6.0",
     "@opentelemetry/sdk-trace-base": "^2.6.0",
+    "@opentelemetry/semantic-conventions": "^1.40.0",
     "@prisma/adapter-pg": "^7.5.0",
     "@prisma/client": "^7.5.0",
     "class-transformer": "^0.5.1",

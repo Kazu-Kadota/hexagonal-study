@@ -104,7 +104,9 @@ export function buildOrderRouter(
   });
 
   router.get("/order/:id", async (req: Request, res: Response) => {
-    const order = await getOrderUseCase.execute(req.params.id);
+    const id: string = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id
+
+    const order = await getOrderUseCase.execute(id);
     if (!order) {
       res.status(404).json({ error: "Order not found" });
       return;
@@ -114,7 +116,8 @@ export function buildOrderRouter(
 
   router.put("/order/:id/cancel", async (req: Request, res: Response) => {
     try {
-      await cancelOrderUseCase.execute(req.params.id);
+      const id: string = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id
+      await cancelOrderUseCase.execute(id);
       res.status(200).send();
     } catch (error) {
       if (error instanceof Error && error.message === "Order not found") {
@@ -127,7 +130,8 @@ export function buildOrderRouter(
 
   router.delete("/order/:id", async (req: Request, res: Response) => {
     try {
-      await deleteOrderUseCase.execute(req.params.id);
+      const id: string = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id
+      await deleteOrderUseCase.execute(id);
       res.status(204).send();
     } catch (error) {
       if (error instanceof Error && error.message === "Order not found") {
