@@ -7,13 +7,13 @@ const postgresUser = env("POSTGRES_USER");
 const postgresPassword = env("POSTGRES_PASSWORD");
 const postgresHost = env("POSTGRES_HOST");
 const postgresPort = env("POSTGRES_PORT");
-const service = env("SERVICE");
+const orders_db_name = env("ORDERS_DB_NAME");
 
-if (!postgresUser || !postgresPassword || !postgresHost || !postgresPort || !service) {
+if (!postgresUser || !postgresPassword || !postgresHost || !postgresPort || !orders_db_name) {
   throw new Error("Missing required environment variables for PostgreSQL connection");
 }
 
-const url = `postgresql://${postgresUser}:${postgresPassword}@${postgresHost}:${postgresPort}/${service}`;
+const url = `postgresql://${postgresUser}:${postgresPassword}@${postgresHost}:${postgresPort}/${orders_db_name}`;
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
