@@ -264,18 +264,18 @@ export type PaymentsOrderByWithRelationInput = {
 
 export type PaymentsWhereUniqueInput = Prisma.AtLeast<{
   id?: string
+  idempotency_key?: string
+  orderId?: string
+  stripePaymentIntentId?: string
   AND?: Prisma.PaymentsWhereInput | Prisma.PaymentsWhereInput[]
   OR?: Prisma.PaymentsWhereInput[]
   NOT?: Prisma.PaymentsWhereInput | Prisma.PaymentsWhereInput[]
-  idempotency_key?: Prisma.StringFilter<"Payments"> | string
-  orderId?: Prisma.StringFilter<"Payments"> | string
   amount?: Prisma.FloatFilter<"Payments"> | number
   currency?: Prisma.EnumCurrencyFilter<"Payments"> | $Enums.Currency
   status?: Prisma.EnumStatusFilter<"Payments"> | $Enums.Status
-  stripePaymentIntentId?: Prisma.StringFilter<"Payments"> | string
   createdAt?: Prisma.DateTimeFilter<"Payments"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Payments"> | Date | string
-}, "id">
+}, "id" | "idempotency_key" | "orderId" | "stripePaymentIntentId">
 
 export type PaymentsOrderByWithAggregationInput = {
   id?: Prisma.SortOrder

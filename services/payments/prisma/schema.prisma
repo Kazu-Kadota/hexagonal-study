@@ -27,15 +27,15 @@ enum Currency {
 }
 
 model Payments {
-  id          String   @id @default(uuid())
-  idempotency_key String
-  orderId  String
-  amount      Float
-  currency    Currency
-  status      Status
-  stripePaymentIntentId String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime
+  id                    String @id @default(uuid())
+  idempotency_key       String @unique
+  orderId               String @unique
+  amount                Float
+  currency              Currency
+  status                Status
+  stripePaymentIntentId String @unique
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime
 
   @@index([id])
   @@map("payments")
