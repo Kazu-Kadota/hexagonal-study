@@ -1,7 +1,9 @@
-import { MongoClient, Db, Collection, Document, MongoClientOptions } from "mongodb";
+import { MongoClient, Db, MongoClientOptions } from "mongodb";
+import { RepositoryConnectionPort } from "../ports.js";
 
-export class MongoConnection {
+export class MongoConnection implements RepositoryConnectionPort {
   private client: MongoClient | null = null;
+  private db: Db | null = null;
 
   constructor(
     private readonly uri: string,
@@ -14,18 +16,7 @@ export class MongoConnection {
 
     this.client = new MongoClient(this.uri, this.mongoOptions);
     await this.client.connect();
-  }
-
-  getDb(): Db {
-    if (!this.client) {
-      throw new Error("MongoConnection is not connected");
-    }
-
-    return this.client.db(this.dbName);
-  }
-
-  getCollection<T extends Document>(name: string): Collection<T> {
-    return this.getDb().collection<T>(name);
+    this.db = this.client.db(this.dbName);
   }
 
   async isHealthy(): Promise<boolean> {
@@ -44,5 +35,13 @@ export class MongoConnection {
 
     await this.client.close();
     this.client = null;
+  }
+
+  getClient(): Db {
+    if (!this.db) {
+      throw new Error("MongoConnection is not connected");
+    }
+
+    return this.db;
   }
 }
