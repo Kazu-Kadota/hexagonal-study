@@ -1,7 +1,7 @@
 import { trace } from "@opentelemetry/api";
-import type { TelemetryPort } from "../../../application/ports.js";
+import { IPaymentsTelemetryPort } from "../../../../application/ports/outbound/telemetry/telemetry.js";
 
-export class OTelTelemetry implements TelemetryPort {
+export class OTelTelemetry implements IPaymentsTelemetryPort {
   async span<T>(name: string, fn: () => Promise<T>): Promise<T> {
     const tracer = trace.getTracer("payments-service");
     return tracer.startActiveSpan(name, async (span) => {

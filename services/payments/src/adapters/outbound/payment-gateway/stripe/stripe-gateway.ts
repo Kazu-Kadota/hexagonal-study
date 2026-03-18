@@ -1,7 +1,7 @@
 import Stripe from "stripe";
-import type { PaymentGatewayPort } from "../../../application/ports.js";
+import { IPaymentsGatewayPort } from "../../../../application/ports/outbound/payment-gateway/payment-gateway.js";
 
-export class StripeGateway implements PaymentGatewayPort {
+export class StripeGateway implements IPaymentsGatewayPort {
   constructor(private readonly stripe: Stripe) {}
 
   async createPaymentIntent(input: {
