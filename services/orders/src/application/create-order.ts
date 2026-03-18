@@ -4,6 +4,12 @@ import { IOrdersRepositoryWritePort } from "./ports/outbound/database/database-w
 import { IOrdersEventBusPort } from "./ports/outbound/messaging/messaging.js";
 import { IOrdersTelemetryPort } from "./ports/outbound/telemetry/telemetry.js";
 
+export type CreateOrderUseCaseExecuteParams = {
+  customerId: string;
+  amount: number;
+  currency: CurrencyType;
+}
+
 export class CreateOrderUseCase {
   constructor(
       private readonly writeOrderRepository: IOrdersRepositoryWritePort,
@@ -12,11 +18,7 @@ export class CreateOrderUseCase {
       private readonly telemetry: IOrdersTelemetryPort
   ) {}
 
-  async execute(input: {
-    customerId: string;
-    amount: number;
-    currency: CurrencyType;
-  }): Promise<OrderDTO> {
+  async execute(input: CreateOrderUseCaseExecuteParams): Promise<OrderDTO> {
     return this.telemetry.span("orders.create", async () => {
       const order = Order.create({
         amount: input.amount,

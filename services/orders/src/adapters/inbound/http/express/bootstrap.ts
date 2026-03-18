@@ -9,7 +9,7 @@ import { CreateOrderUseCase } from "../../../../application/create-order.js";
 import { GetOrderUseCase } from "../../../../application/get-order.js";
 import { CancelOrderUseCase } from "../../../../application/cancel-order.js";
 import { DeleteOrderUseCase } from "../../../../application/delete-order.js";
-import { buildOrderRouter } from "./order-controller.js";
+import { OrderController } from "./order-controller.js";
 import { MongoConnection } from "../../../../infrastructure/database/mongodb/connection.js";
 import { RedisConnection } from "../../../../infrastructure/cache/redis/connection.js";
 import { KafkaConnection } from "../../../../infrastructure/messaging/kafka/connection.js";
@@ -86,14 +86,16 @@ export async function bootstrapExpress() {
     telemetry
   );
 
-  const appExpress = express();
-  appExpress.use(express.json());
-  appExpress.use(buildOrderRouter(
+  const orderController = new OrderController(
     createOrderUseCase,
     getOrderUseCase,
     cancelOrderUseCase,
-    deleteOrderUseCase
-  ));
+    deleteOrderUseCase,
+  )
+
+  const appExpress = express();
+  appExpress.use(express.json());
+  appExpress.use(orderController.buildRouter());
 
   const server = appExpress.listen(config.app.port, () => {
     console.log(`${config.app.name} service on :${config.app.port}`);

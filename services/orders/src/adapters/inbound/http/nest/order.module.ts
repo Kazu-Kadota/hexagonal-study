@@ -7,7 +7,6 @@ import { OrderDTO } from '../../../../domain/order.js';
 import { config } from '../../../../infrastructure/config.js';
 import { KafkaEventBus } from '../../../outbound/messaging/kafka/event-bus.js';
 import { OTelTelemetry } from '../../../outbound/telemetry/otel/otel-telemetry.js';
-import { MongoOrderRepositoryRead } from '../../../outbound/database/mongodb/read.js';
 import { RedisOrderCache } from '../../../outbound/cache/redis/order-cache.js';
 import { GetOrderUseCase } from '../../../../application/get-order.js';
 import { CreateOrderUseCase } from '../../../../application/create-order.js';
