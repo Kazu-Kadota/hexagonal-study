@@ -1,35 +1,38 @@
-import { createPaymentRecord } from "../domain/payment.js";
-import type {
-  EventBusPort,
-  PaymentCachePort,
-  PaymentGatewayPort,
-  PaymentRepositoryPort,
-  TelemetryPort,
-} from "./ports.js";
+import { CurrencyType, Payment, PaymentDTO, paymentStatus } from "../domain/payment.js";
+import { IPaymentsCachePort } from "./ports/outbound/cache/cache.js";
+import { IPaymentsRepositoryReadPort } from "./ports/outbound/database/database-read.js";
+import { IPaymentsRepositoryWritePort } from "./ports/outbound/database/database-write.js";
+import { IPaymentsEventBusPort } from "./ports/outbound/messaging/messaging.js";
+import { IPaymentsGatewayPort } from "./ports/outbound/payment-gateway/payment-gateway.js";
+import { IPaymentsTelemetryPort } from "./ports/outbound/telemetry/telemetry.js";
+
+export type CreatePaymentUseCaseParams = {
+  amount: number;
+  currency: CurrencyType;
+  idempotencyKey: string;
+  orderId: string;
+}
 
 export class CreatePaymentUseCase {
   constructor(
-    private readonly repository: PaymentRepositoryPort,
-    private readonly gateway: PaymentGatewayPort,
-    private readonly eventBus: EventBusPort,
-    private readonly cache: PaymentCachePort,
-    private readonly telemetry: TelemetryPort,
+    private readonly writeRepository: IPaymentsRepositoryWritePort,
+    private readonly readRepository: IPaymentsRepositoryReadPort,
+    private readonly gateway: IPaymentsGatewayPort,
+    private readonly eventBus: IPaymentsEventBusPort,
+    private readonly cache: IPaymentsCachePort,
+    private readonly telemetry: IPaymentsTelemetryPort,
   ) {}
 
-  async execute(input: { 
-    amount: number;
-    currency: string;
-    idempotencyKey: string;
-    orderId: string;
-  }) {
+  async execute(input: CreatePaymentUseCaseParams): Promise<PaymentDTO> {
     return this.telemetry.span("payments.create", async () => {
-      const cacheIdempotentPayment = await this.cache.get(`idempotency:${input.idempotencyKey}`);
+      const cacheIdempotencyName = `paymentsIdempotencyKey:${input.idempotencyKey}`
+      const cacheIdempotentPayment = await this.cache.get(cacheIdempotencyName);
       if (cacheIdempotentPayment) return cacheIdempotentPayment;
 
-      const idempotentPayment = await this.repository.findByIdempotencyKey(input.idempotencyKey);
+      const idempotentPayment = await this.readRepository.findByIdempotencyKey(input.idempotencyKey);
       if (idempotentPayment) {
-        await this.cache.set(`payment:${idempotentPayment.id}`, idempotentPayment, 60 * 60);
-        await this.cache.set(`idempotency:${idempotentPayment.idempotency}`, idempotentPayment, 60 * 5);
+        await this.cache.set(cacheIdempotencyName, idempotentPayment);
+        await this.cache.set(cacheIdempotencyName, idempotentPayment);
         return idempotentPayment;
       }
 
@@ -42,30 +45,34 @@ export class CreatePaymentUseCase {
         },
       });
 
-      const payment = createPaymentRecord({
+      const payment = Payment.create({
         idempotency: input.idempotencyKey,
         orderId: input.orderId,
         amount: input.amount,
-        currency: input.currency,
         stripePaymentIntentId: intent.id,
-        status: intent.status,
+        currency: input.currency,
+        status: paymentStatus.created,
       });
 
-      await this.repository.save(payment);
+      const paymentDTO = payment.toDTO()
+
+      await this.writeRepository.save(paymentDTO);
       await this.eventBus.publish("payment.created", {
         type: "payment.created",
         payload: {
-          paymentId: payment.id,
-          orderId: payment.orderId,
-          stripePaymentIntentId: payment.stripePaymentIntentId,
-          status: payment.status,
-          idempotency: payment.idempotency,
+          paymentId: paymentDTO.id,
+          orderId: paymentDTO.orderId,
+          stripePaymentIntentId: paymentDTO.stripePaymentIntentId,
+          status: paymentDTO.status,
+          idempotency: paymentDTO.idempotency_key,
         },
       });
-      await this.cache.set(`payment:${payment.id}`, payment, 60 * 60);
-      await this.cache.set(`idempotency:${payment.idempotency}`, payment, 60 * 5);
 
-      return payment;
+      const cachePayment = `payments:${paymentDTO.id}`
+      await this.cache.set(cachePayment, paymentDTO);
+      await this.cache.set(cachePayment, paymentDTO);
+
+      return paymentDTO;
     });
   }
 }
