@@ -2,7 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import { GetPaymentUseCase } from "../../../../application/get-payment.js";
 import { CreatePaymentUseCase } from "../../../../application/create-payment.js";
 import { FindPaymentByIdempotencyUseCase } from "../../../../application/find-payment-by-idempotency.js";
-import { Payment } from "../../../../domain/payment.js";
+import { PaymentDomain } from "../../../../domain/payment.js";
 
 @Injectable()
 export class PaymentService {
@@ -22,15 +22,15 @@ export class PaymentService {
     currency: string;
     idempotencyKey: string;
     orderId: string;
-  }): Promise<Payment> {
+  }): Promise<PaymentDomain> {
     return await this.createPaymentUseCase.execute(input);
   }
 
-  async getPayment(id: string): Promise<Payment> {
+  async getPayment(id: string): Promise<PaymentDomain> {
     return await this.getPaymentUseCase.execute(id);
   }
 
-  async findPaymentByIdempotency(id: string): Promise<Payment | null> {
+  async findPaymentByIdempotency(id: string): Promise<PaymentDomain | null> {
     return await this.findPaymentByIdempotencyUseCase.execute(id);
   }
 }

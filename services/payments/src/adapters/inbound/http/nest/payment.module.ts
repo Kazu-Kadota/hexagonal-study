@@ -4,21 +4,21 @@ import { PaymentService } from './payment.service.js';
 import { EVENT_BUS, KAFKA_CONNECTION, KAFKA_PRODUCER, MONGO_COLLECTION, MONGO_CONNECTION, PAYMENT_CACHE, PAYMENT_REPOSITORY, REDIS_CONNECTION, TELEMETRY, KAFKA_CONSUMER, STRIPE_CONNECTION, STRIPE_GATEWAY } from './token.js';
 import { Collection } from 'mongodb';
 import { config } from '../../../../infrastructure/config.js';
-import { KafkaEventBus } from '../../../outbound/kafka/event-bus.js';
-import { OTelTelemetry } from '../../../outbound/telemetry/otel-telemetry.js';
+import { KafkaEventBus } from '../../../outbound/messaging/kafka/event-bus.js';
+import { OTelTelemetry } from '../../../outbound/telemetry/otel/otel-telemetry.js';
 import { MongoConnection } from '../../../outbound/mongodb/infra/connection.js';
-import { RedisConnection } from '../../../outbound/redis/infra/connection.js';
-import { KafkaConnection } from '../../../outbound/kafka/infra/connection.js';
+import { RedisConnection } from '../../../outbound/cache/redis/infra/connection.js';
+import { KafkaConnection } from '../../../outbound/messaging/kafka/infra/connection.js';
 import { ClientShutdownService } from './infra/client-shutdown.service.js';
 import { Consumer, Producer } from 'kafkajs';
 import { MongoPaymentRepository } from '../../../outbound/mongodb/payment-repository.js';
-import { Payment } from '../../../../domain/payment.js';
-import { StripeConnection } from '../../../outbound/stripe/infra/connection.js';
+import { PaymentDomain } from '../../../../domain/payment.js';
+import { StripeConnection } from '../../../outbound/payment-gateway/stripe/infra/connection.js';
 import { CreatePaymentUseCase } from '../../../../application/create-payment.js';
-import { StripeGateway } from '../../../outbound/stripe/stripe-gateway.js';
+import { StripeGateway } from '../../../outbound/payment-gateway/stripe/stripe-gateway.js';
 import { GetPaymentUseCase } from '../../../../application/get-payment.js';
 import { FindPaymentByIdempotencyUseCase } from '../../../../application/find-payment-by-idempotency.js';
-import { RedisPaymentCache } from '../../../outbound/redis/payment-cache.js';
+import { RedisPaymentCache } from '../../../outbound/cache/redis/payment-cache.js';
 
 @Module({
   imports: [],
@@ -36,14 +36,14 @@ import { RedisPaymentCache } from '../../../outbound/redis/payment-cache.js';
     },
     {
       provide: MONGO_COLLECTION,
-      useFactory: async (mongo: MongoConnection): Promise<Collection<Payment>> => {
-        return mongo.getCollection<Payment>(config.service);
+      useFactory: async (mongo: MongoConnection): Promise<Collection<PaymentDomain>> => {
+        return mongo.getCollection<PaymentDomain>(config.service);
       },
       inject: [MONGO_CONNECTION]
     },
     {
       provide: PAYMENT_REPOSITORY,
-      useFactory: (collection: Collection<Payment>) => {
+      useFactory: (collection: Collection<PaymentDomain>) => {
         return new MongoPaymentRepository(collection);
       },
       inject: [MONGO_COLLECTION]
