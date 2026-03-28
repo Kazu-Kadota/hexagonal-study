@@ -1,27 +1,30 @@
-import { Payment } from "../domain/payment.js";
-import { PaymentCachePort, PaymentRepositoryPort, TelemetryPort } from "./ports.js";
+import { PaymentDomain } from "../domain/payment.js";
+import { IPaymentsCachePort } from "./ports/outbound/cache/cache.js";
+import { IPaymentsRepositoryReadPort } from "./ports/outbound/database/database-read.js";
+import { IPaymentsTelemetryPort } from "./ports/outbound/telemetry/telemetry.js";
 
 export class FindPaymentByIdempotencyUseCase {
   constructor(
-    private readonly repository: PaymentRepositoryPort,
-    private readonly cache: PaymentCachePort,
-    private readonly telemetry: TelemetryPort,
+    private readonly readRepository: IPaymentsRepositoryReadPort,
+    private readonly cache: IPaymentsCachePort,
+    private readonly telemetry: IPaymentsTelemetryPort,
   ) {}
 
-  async execute(idempotencyKey: string): Promise<Payment | null> {
+  async execute(idempotencyKey: string): Promise<PaymentDomain | null> {
     return this.telemetry.span("payments.findByIdempotency", async () => {
-      const cached = await this.cache.get(`idempotency:${idempotencyKey}`);
+      const cacheName = `paymentsIdempotencyKey:${idempotencyKey}`
+      const cached = await this.cache.get(cacheName);
 
       if (cached) {
         return cached;
       }
 
-      const payment = await this.repository.findByIdempotencyKey(idempotencyKey);
+      const payment = await this.readRepository.findByIdempotencyKey(idempotencyKey);
 
       if (payment) {
-        await this.cache.set(`idempotency:${idempotencyKey}`, payment, 60 * 60);
+        await this.cache.set(cacheName, payment);
       }
-
+      
       return payment;
     });
   }

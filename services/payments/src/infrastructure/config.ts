@@ -1,17 +1,99 @@
-import "dotenv/config";
+import z from "zod";
 
-export const config = {
-  service: "payments",
-  framework: process.env.FRAMEWORK ?? "express",
-  port: Number(process.env.PAYMENTS_PORT ?? 3002),
-  mongoUri: process.env.MONGO_URI ?? "mongodb://localhost:27017",
-  dbName: process.env.PAYMENTS_DB_NAME ?? "payments_db",
-  kafkaBrokers: (process.env.KAFKA_BROKERS ?? "localhost:9092").split(","),
-  kafkaClientId: process.env.KAFKA_CLIENT_ID ?? "hexagonal-study",
-  kafkaGroupId: process.env.KAFKA_GROUP_ID ?? "hexagonal-study-group",
-  redisUrl: process.env.REDIS_URL ?? "redis://localhost:6379",
-  stripeSecretKey: process.env.STRIPE_SECRET_KEY ?? "",
-  stripeCurrency: process.env.STRIPE_CURRENCY ?? "usd",
-  otelEndpoint:
-    process.env.OTEL_EXPORTER_OTLP_ENDPOINT ?? "http://localhost:4318",
-};
+const schema = z.object({
+  app: z.object({
+    name: z.literal("payments"),
+    port: z.coerce.number().int().positive().default(3002),
+  }),
+  cache: z.object({
+    redis: z.object({
+      url: z.string().default("redis://localhost:6379"),
+    })
+  }),
+  database: z.object({
+    write: z.object({
+      provider: z.enum(["postgres", "mongodb"]).default("postgres"),
+      host: z.string().default("localhost"),
+      port: z.coerce.number().int().positive().default(5432),
+      user: z.string().default("postgres"),
+      password: z.string().default("postgres"),
+      uri: z.string().default("mongodb://localhost:27017"),
+    }),
+    read: z.object({
+      provider: z.enum(["postgres", "mongodb"]).default("mongodb"),
+      host: z.string().default("localhost"),
+      port: z.coerce.number().int().positive().default(5432),
+      user: z.string().default("postgres"),
+      password: z.string().default("postgres"),
+      uri: z.string().default("mongodb://localhost:27017"),
+    })
+  }),
+  messaging: z.object({
+    kafka: z.object({
+      brokers: z.string().default("localhost:9092").transform((str) => str.split(",")),
+      clientId: z.string().default("hexagonal-study"),
+      groupId: z.string().default("hexagonal-study-group"),
+    })
+  }),
+  payment_gateway: z.object({
+    stripe: z.object({
+      secretKey: z.string().default(""),
+      currency: z.string().default("usd"),
+    })
+  }),
+  telemetry: z.object({
+    otel: z.object({
+      endpoint: z.string().default("http://localhost:4318"),
+    })
+  })
+})
+
+export const config = schema.parse({
+  app: {
+    name: "payments",
+    port: process.env.PAYMENTS_PORT ?? 3002,
+  },
+  cache: {
+    redis: {
+      url: process.env.REDIS_URL ?? "redis://localhost:6379",
+    }
+  },
+  database: {
+    write: {
+      provider: process.env.ORDERS_DB_WRITE_ADAPTER ?? "postgres",
+      host: process.env.POSTGRES_HOST ?? "localhost",
+      port: process.env.POSTGRES_PORT ?? 5432,
+      user: process.env.POSTGRES_USER ?? "postgres",
+      password: process.env.POSTGRES_PASSWORD ?? "postgres",
+      uri: process.env.MONGO_URI ?? "mongodb://localhost:27017",
+    },
+    read: {
+      provider: process.env.ORDERS_DB_READ_ADAPTER ?? "mongodb",
+      host: process.env.POSTGRES_HOST ?? "localhost",
+      port: process.env.POSTGRES_PORT ?? 5432,
+      user: process.env.POSTGRES_USER ?? "postgres",
+      password: process.env.POSTGRES_PASSWORD ?? "postgres",
+      uri: process.env.MONGO_URI ?? "mongodb://localhost:27017",
+    }
+  },
+  messaging: {
+    kafka: {
+      brokers: (process.env.KAFKA_BROKERS ?? "localhost:9092").split(","),
+      clientId: process.env.KAFKA_CLIENT_ID ?? "hexagonal-study",
+      groupId:  process.env.KAFKA_GROUP_ID ?? "hexagonal-study-group",
+    }
+  },
+  payment_gateway: {
+    stripe: {
+      secretKey: process.env.STRIPE_SECRET_KEY ?? "",
+      currency: process.env.STRIPE_CURRENCY ?? "usd",
+    }
+  },
+  telemetry: {
+    otel: {
+      endpoint: process.env.OTEL_EXPORTER_OTLP_ENDPOINT ?? "http://localhost:4318",
+    }
+  }
+});
+
+export type Config = z.infer<typeof schema>;

@@ -1,11 +1,11 @@
-import { Payment } from "../../../../../domain/payment.js";
+import { PaymentDomain } from "../../../../../domain/payment.js";
 import { GetPaymentOutputDto } from "./payment.js";
 
 export class PaymentMapper {
-  static toGetPaymentOutputDto(payment: Payment): GetPaymentOutputDto {
+  static toGetPaymentOutputDto(payment: PaymentDomain): GetPaymentOutputDto {
     return {
       id: payment.id,
-      idempotency: payment.idempotency,
+      idempotency: payment.idempotency_key,
       orderId: payment.orderId,
       amount: payment.amount,
       currency: payment.currency,

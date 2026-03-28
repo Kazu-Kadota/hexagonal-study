@@ -1,8 +1,8 @@
 import { BeforeApplicationShutdown, Inject, Injectable } from "@nestjs/common";
 import { MongoConnection } from "../../../../outbound/mongodb/infra/connection.js";
-import { RedisConnection } from "../../../../outbound/redis/infra/connection.js";
+import { RedisConnection } from "../../../../outbound/cache/redis/infra/connection.js";
 import { KAFKA_CONNECTION, MONGO_CONNECTION, REDIS_CONNECTION } from "../token.js";
-import { KafkaConnection } from "../../../../outbound/kafka/infra/connection.js";
+import { KafkaConnection } from "../../../../outbound/messaging/kafka/infra/connection.js";
 
 @Injectable()
 export class ClientShutdownService implements BeforeApplicationShutdown {

@@ -5,6 +5,11 @@ const schema = z.object({
     name: z.literal("orders"),
     port: z.coerce.number().int().positive().default(3001),
   }),
+  cache: z.object({
+    redis: z.object({
+      url: z.string().default("redis://localhost:6379"),
+    })
+  }),
   database: z.object({
     write: z.object({
       provider: z.enum(["postgres", "mongodb"]).default("postgres"),
@@ -21,11 +26,6 @@ const schema = z.object({
       user: z.string().default("postgres"),
       password: z.string().default("postgres"),
       uri: z.string().default("mongodb://localhost:27017"),
-    })
-  }),
-  cache: z.object({
-    redis: z.object({
-      url: z.string().default("redis://localhost:6379"),
     })
   }),
   messaging: z.object({
@@ -46,6 +46,11 @@ export const config = schema.parse({
     name: "orders",
     port: process.env.ORDERS_PORT ?? 3001,
   },
+  cache: {
+    redis: {
+      url: process.env.REDIS_URL ?? "redis://localhost:6379",
+    }
+  },
   database: {
     write: {
       provider: process.env.ORDERS_DB_WRITE_ADAPTER ?? "postgres",
@@ -62,11 +67,6 @@ export const config = schema.parse({
       user: process.env.POSTGRES_USER ?? "postgres",
       password: process.env.POSTGRES_PASSWORD ?? "postgres",
       uri: process.env.MONGO_URI ?? "mongodb://localhost:27017",
-    }
-  },
-  cache: {
-    redis: {
-      url: process.env.REDIS_URL ?? "redis://localhost:6379",
     }
   },
   messaging: {

@@ -40,5 +40,5 @@ export type FindByCustomerIdProjection = {
 export abstract class IOrdersRepositoryReadPort {
   abstract findById(id: string): Promise<FindByIdProjection | null>;
   abstract findByStatus(status: OrderStatusType, pagination: PaginationParameters): Promise<PaginatedOrders<FindByStatusProjection> | null>;
-  abstract findByCustomerId(customerId: string, pagination: PaginationParameters): Promise<PaginatedOrders<FindByStatusProjection> | null>;
+  abstract findByCustomerId(customerId: string, pagination: PaginationParameters): Promise<PaginatedOrders<FindByCustomerIdProjection> | null>;
 }

@@ -10,7 +10,7 @@ export type CreateOrderOutput = {
   id: string;
   customerId: string;
   amount: number;
-  currency: string;
+  currency: CurrencyType;
   status: string;
   createdAt: Date | string;
   updatedAt: Date | string;
