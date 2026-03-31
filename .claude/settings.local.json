@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m scripts.aggregate_benchmark /workspace/solutions-architect-workspace/iteration-1 --skill-name solutions-architect)",
+      "Bash(python3 -m scripts.aggregate_benchmark /workspace/solutions-architect-workspace/iteration-1 --skill-name solutions-architect)",
+      "Bash(for f:*)",
+      "Bash(do echo:*)",
+      "Read(//workspace/.claude/skills/skill-creator/**)",
+      "Bash(done)",
+      "Bash(mkdir -p /workspace/.claude/skills/hexagonal-microservice-scaffold/evals)",
+      "Bash(mkdir -p /workspace/.claude/skills/hexagonal-microservice-scaffold-workspace/iteration-1)",
+      "Bash(git -C /workspace log --oneline -10)",
+      "Bash(python3:*)"
+    ]
+  }
+}
