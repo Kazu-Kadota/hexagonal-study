@@ -1,4 +1,4 @@
-import { OrderDTO } from "../../../../domain/order.js";
+import { OrderDTO } from "../../../../entity/order/order.js";
 import { FindByIdProjection } from "./database-read.js";
 
 export abstract class IOrdersRepositoryWritePort {

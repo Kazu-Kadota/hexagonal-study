@@ -1,0 +1,307 @@
+{
+  "skill_name": "hexagonal-microservice-scaffold",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I want to create a new microservice for managing products in my e-commerce platform. The service should be called 'inventory', the entity is a 'Product' with fields: name (string), sku (string, unique), price (number), quantity (number), category (string), and status (active/inactive/discontinued). Operations needed: create product, get product by id, deactivate product (sets status to inactive), and delete product. Use the same hexagonal architecture as the orders service — Express + NestJS, Postgres for writes, MongoDB for reads, Redis cache, Kafka events, and OpenTelemetry tracing. Please scaffold the full service structure with all files.",
+      "expected_output": "Complete TypeScript file structure for the inventory microservice following hexagonal architecture: domain entity Product with private constructor, create/reconstitute/toDTO methods; abstract port classes for read/write repos, cache, messaging, telemetry; use cases for create/get/deactivate/delete with telemetry.span wrapping; PostgresProductRepositoryWrite/Read, MongoProductRepositoryRead/Write, RedisProductCache, KafkaEventBus, OTelTelemetry adapters; Express controller+bootstrap and NestJS module+service+controller+tokens; infrastructure config with Zod; Prisma schema with Product model.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "domain-no-imports",
+          "description": "The domain/product.ts file has no framework or library imports (no express, no prisma, no mongoose, no nestjs)"
+        },
+        {
+          "name": "ports-are-abstract-classes",
+          "description": "All port definitions use 'abstract class' keyword, not 'interface'"
+        },
+        {
+          "name": "use-cases-wrap-telemetry-span",
+          "description": "Every use case's execute() method wraps its body in this.telemetry.span(...)"
+        },
+        {
+          "name": "redis-cache-ttl",
+          "description": "The Redis cache adapter's set() call includes a TTL (EX parameter)"
+        },
+        {
+          "name": "status-as-const",
+          "description": "Product status enum is defined as 'as const' object, not TypeScript enum"
+        },
+        {
+          "name": "graceful-shutdown-allsettled",
+          "description": "Express bootstrap uses Promise.allSettled for closing multiple connections in graceful shutdown"
+        },
+        {
+          "name": "kafka-topic-naming",
+          "description": "Kafka topics follow the '<entity>.<past-tense-verb>' naming convention (e.g. product.created, product.deactivated)"
+        },
+        {
+          "name": "config-zod-validated",
+          "description": "infrastructure/config.ts uses Zod schema to validate environment variables"
+        },
+        {
+          "name": "correct-folder-structure",
+          "description": "Files are placed in the correct hexagonal layers: domain/, application/ports/, application/use-cases/, adapters/inbound/, adapters/outbound/, infrastructure/"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "I'm starting a brand new repo from scratch. I need a monorepo with two microservices: 'notifications' (sends emails/SMS, entity is Notification with fields: recipientId, channel [email|sms], message, status [pending|sent|failed]) and 'users' (manages user accounts, entity is User with fields: email, name, role [admin|member|guest], status [active|inactive]). Each service needs create, get, and delete use cases. Set up the full monorepo structure: root package.json with workspaces, docker-compose.yml, and scaffold both services with hexagonal architecture. For both services use Postgres write + MongoDB read, Redis, Kafka, and OpenTelemetry.",
+      "expected_output": "Root package.json with workspaces config, docker-compose.yml with postgres/mongo/redis/kafka/otel, and two complete service scaffolds (notifications and users) each following hexagonal architecture. Both services should have identical structural patterns.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "root-workspace-config",
+          "description": "Root package.json includes workspaces array pointing to services/*"
+        },
+        {
+          "name": "both-services-scaffolded",
+          "description": "Both notifications and users services are fully scaffolded with all layers"
+        },
+        {
+          "name": "structural-symmetry",
+          "description": "Both services have identical folder structures (domain/, application/ports/, application/use-cases/, adapters/, infrastructure/)"
+        },
+        {
+          "name": "docker-compose-includes-all-infra",
+          "description": "docker-compose.yml includes postgres, mongodb, redis, kafka, and opentelemetry collector"
+        },
+        {
+          "name": "no-process-env-outside-config",
+          "description": "process.env is only accessed inside infrastructure/config.ts, not in other files"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "I have an existing hexagonal monorepo. I need to add a 'reviews' microservice. The Review entity has: productId (string), userId (string), rating (1-5 number), comment (string, optional), status (pending|approved|rejected). Use cases: submit review (creates with pending status), approve review, reject review, get review by id, list reviews by product (paginated). The service should follow the exact same patterns as the orders service — Express and NestJS bootstraps, CQRS with Postgres write/MongoDB read, Redis cache, Kafka events for review.submitted/review.approved/review.rejected, and OpenTelemetry tracing. Generate all files.",
+      "expected_output": "Complete reviews microservice with domain entity Review (private constructor, create/reconstitute/toDTO, approve() and reject() transition methods, validation that rating is 1-5), ports for read (with findByProductId paginated), write, cache, messaging, telemetry, use cases for submit/approve/reject/get/list, all adapters, and infrastructure.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "rating-validation",
+          "description": "Review.create() validates that rating is between 1 and 5, throwing a descriptive error if not"
+        },
+        {
+          "name": "approve-reject-transition-methods",
+          "description": "Review domain entity has approve() and reject() methods that update status and updatedAt"
+        },
+        {
+          "name": "read-port-has-findByProductId",
+          "description": "The read repository port includes a findByProductId method with pagination parameters"
+        },
+        {
+          "name": "three-kafka-topics",
+          "description": "Three Kafka events are published: review.submitted, review.approved, and review.rejected"
+        },
+        {
+          "name": "cqrs-pattern",
+          "description": "Get and list use cases use the read repository; submit/approve/reject use cases use the write repository"
+        },
+        {
+          "name": "no-framework-in-use-cases",
+          "description": "Use case files import nothing from express, @nestjs, prisma, mongodb, redis, or kafkajs"
+        }
+      ]
+    }
+    ,
+    {
+      "id": 5,
+      "prompt": "I have an existing 'orders' service using hexagonal architecture (Express HTTP, Postgres write, MongoDB read, Redis cache, Kafka). I need to add a Kafka consumer that listens to events from the payments service. When a 'payment.completed' event arrives, it should mark the corresponding order as 'paid' — add a 'paid' status to the Order entity and a markAsPaid() transition method. When a 'payment.failed' event arrives, it should cancel the order (already exists as CancelOrderUseCase). Add the consumer adapter, its bootstrap, wire it into main.ts, and create the MarkOrderAsPaidUseCase. Do not touch the existing HTTP adapter.",
+      "expected_output": "New files: domain entity updated with 'paid' status and markAsPaid() method; MarkOrderAsPaidUseCase that reads order, calls markAsPaid(), persists, invalidates cache, publishes order.paid event; Kafka consumer adapter at adapters/inbound/messaging/kafka/ that subscribes to payment.completed and payment.failed, delegates to use cases, logs-and-skips on error; consumer bootstrap.ts as separate composition root; main.ts updated to run consumer alongside HTTP bootstrap. Existing HTTP adapter files are untouched.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "paid-status-on-entity",
+          "description": "Order entity (or domain file) adds 'paid' to the status enum and has a markAsPaid() transition method"
+        },
+        {
+          "name": "mark-paid-use-case-exists",
+          "description": "A MarkOrderAsPaidUseCase (or equivalent) exists in application/use-cases/ and wraps execute() in telemetry.span()"
+        },
+        {
+          "name": "consumer-adapter-correct-location",
+          "description": "Kafka consumer lives in adapters/inbound/messaging/kafka/ (not in outbound, not in infrastructure)"
+        },
+        {
+          "name": "consumer-delegates-not-implements-logic",
+          "description": "The consumer adapter contains no business logic — it only parses the message and calls a use case's execute()"
+        },
+        {
+          "name": "consumer-skip-on-error",
+          "description": "The consumer catches errors per-message (try/catch inside eachMessage) and logs rather than throwing, preventing consumer crash"
+        },
+        {
+          "name": "consumer-bootstrap-is-separate",
+          "description": "A separate bootstrap.ts exists for the Kafka consumer (not merged into the HTTP bootstrap)"
+        },
+        {
+          "name": "main-ts-runs-both",
+          "description": "main.ts calls both the HTTP bootstrap and the consumer bootstrap (e.g. with Promise.all or sequential awaits)"
+        },
+        {
+          "name": "http-adapter-untouched",
+          "description": "Existing Express controller and bootstrap files are not modified"
+        }
+      ]
+    }
+    ,
+    {
+      "id": 4,
+      "prompt": "I need a 'shipments' microservice for my logistics platform. The Shipment entity has: orderId (string), recipientName (string), address (string), trackingCode (string), status (pending|in_transit|delivered|failed). Use cases: create shipment, get shipment by id, mark as in_transit, mark as delivered, mark as failed. For infrastructure I'm using: DynamoDB as the only database (no Postgres, no MongoDB, no CQRS split), SQS for messaging (not Kafka), gRPC as the inbound protocol (not HTTP/Express/NestJS), and a simple in-memory Map as cache (no Redis). Use OpenTelemetry for tracing. Generate the full service with hexagonal architecture.",
+      "expected_output": "Complete TypeScript microservice for shipments using hexagonal architecture adapted to non-standard tech: DynamoDB outbound adapter (not Prisma/Mongo), SQS messaging adapter (not Kafka), gRPC inbound adapter (not Express/NestJS), in-memory Map cache (not Redis). Architecture layers must remain intact: domain entity, abstract port classes, use cases with telemetry.span(), adapters implementing ports, infrastructure connections. No Redis, Prisma, Kafka, or Express/NestJS code should appear.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "domain-no-imports",
+          "description": "The domain/shipment.ts file has no framework or library imports"
+        },
+        {
+          "name": "ports-are-abstract-classes",
+          "description": "All port definitions use 'abstract class', not 'interface'"
+        },
+        {
+          "name": "use-cases-wrap-telemetry-span",
+          "description": "Every use case's execute() wraps its body in this.telemetry.span(...)"
+        },
+        {
+          "name": "dynamodb-adapter-not-prisma",
+          "description": "Database adapter uses DynamoDB (aws-sdk or @aws-sdk/client-dynamodb), not Prisma or MongoDB"
+        },
+        {
+          "name": "sqs-adapter-not-kafka",
+          "description": "Messaging adapter uses SQS (@aws-sdk/client-sqs or aws-sdk), not KafkaJS"
+        },
+        {
+          "name": "grpc-inbound-not-express",
+          "description": "Inbound adapter uses gRPC (@grpc/grpc-js or similar), not Express or NestJS HTTP"
+        },
+        {
+          "name": "in-memory-cache-not-redis",
+          "description": "Cache adapter uses a local Map or similar in-memory structure, not ioredis or Redis"
+        },
+        {
+          "name": "status-as-const",
+          "description": "Shipment status enum defined as 'as const' object"
+        },
+        {
+          "name": "transition-methods-on-entity",
+          "description": "Domain entity has markInTransit(), markDelivered(), and markFailed() (or equivalent) methods"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "I have an existing 'orders' service using hexagonal architecture (Express, Postgres write, MongoDB read, Redis cache, Kafka, OpenTelemetry). The Order entity has: id, customerId, items (array), status (pending|cancelled), and transition method cancel(). There are use cases: CreateOrderUseCase, GetOrderUseCase, CancelOrderUseCase. Please add unit tests for the Order domain entity and all three use cases, and an E2E test suite for the HTTP endpoints. Use Vitest.",
+      "expected_output": "Test files: src/domain/_test/order.test.ts covering create() validation (at least one failure case), status after create, and cancel() transition including guard against double-cancel; src/application/use-cases/_test/doubles.ts with test doubles that extend abstract port classes; use case test files that use those doubles and assert on persistence, cache, and event publishing; _test/e2e/setup.ts wiring the real Express controller with in-memory adapters; _test/e2e/ test file(s) using supertest covering happy path and at least one error case.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "domain-test-covers-validation-failure",
+          "description": "Order domain test includes at least one test that expects create() to throw on invalid input (e.g. missing customerId)"
+        },
+        {
+          "name": "domain-test-covers-cancel-guard",
+          "description": "Order domain test includes a test that cancel() throws (or rejects) when the order is already cancelled"
+        },
+        {
+          "name": "doubles-extend-abstract-ports",
+          "description": "Test doubles (FakeWriteRepo, FakeCache, etc.) extend the abstract port classes rather than using vi.fn() or plain objects"
+        },
+        {
+          "name": "use-case-tests-assert-persistence",
+          "description": "At least one use case test asserts that the write repository received the saved entity (e.g. writeRepo.store has length 1)"
+        },
+        {
+          "name": "use-case-tests-assert-event-published",
+          "description": "At least one use case test asserts that the event bus published the correct topic (e.g. 'order.created')"
+        },
+        {
+          "name": "e2e-setup-uses-in-memory-adapters",
+          "description": "_test/e2e/setup.ts wires the real OrderController with in-memory test doubles — no real database or Kafka connection"
+        },
+        {
+          "name": "e2e-tests-use-supertest",
+          "description": "E2E test files use supertest to make HTTP requests against the Express app"
+        },
+        {
+          "name": "e2e-test-covers-error-case",
+          "description": "E2E tests include at least one case that expects a 4xx response (e.g. missing required field returns 400, or not found returns 404)"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "I have an existing 'orders' service using hexagonal architecture (Express, Postgres write, MongoDB read, Redis cache, Kafka). The Order entity has: id, customerId, items, status (pending|cancelled), and a cancel() transition. Add typed domain errors to the service: a DomainError base class, and NotFoundError, ConflictError, ValidationError subtypes. Update the domain entity to throw these typed errors instead of plain Error. Add an Express error-handler middleware that translates domain errors to HTTP status codes using instanceof checks, logs DomainErrors as warn and unknown errors as error, and returns 500 for unexpected failures.",
+      "expected_output": "src/domain/errors.ts with DomainError base class and NotFoundError/ConflictError/ValidationError subtypes; domain entity throws typed errors (not plain Error); src/adapters/inbound/http/express/error-handler.ts that maps ValidationError→400, NotFoundError→404, ConflictError→409, unknown DomainError→422, infra errors→500; DomainErrors logged at warn level, unknown errors at error level; error handler registered in bootstrap after all routes.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "domain-error-base-class",
+          "description": "src/domain/errors.ts defines a DomainError class that extends Error and sets this.name"
+        },
+        {
+          "name": "three-standard-subtypes",
+          "description": "errors.ts exports NotFoundError, ConflictError, and ValidationError — all extending DomainError"
+        },
+        {
+          "name": "entity-throws-typed-errors",
+          "description": "Domain entity (order.ts) throws DomainError subtypes (e.g. ValidationError, ConflictError), not plain new Error()"
+        },
+        {
+          "name": "http-error-handler-exists",
+          "description": "An Express error-handler middleware exists (4-argument function: err, req, res, next) in the adapters/inbound/http/express/ layer"
+        },
+        {
+          "name": "http-maps-by-instanceof",
+          "description": "The error handler uses instanceof checks to map ValidationError→400, NotFoundError→404, ConflictError→409"
+        },
+        {
+          "name": "domain-errors-warn-infra-errors-error",
+          "description": "The error handler logs DomainError instances with console.warn and unknown/infra errors with console.error"
+        },
+        {
+          "name": "infra-errors-return-500",
+          "description": "The error handler returns HTTP 500 for errors that are not instances of DomainError"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "I need an 'articles' service with two aggregates: Article (fields: title, content, status: draft|published; use cases: create, get, publish) and Tip (fields: content, category, status: draft|published; use cases: create, get). Both share Postgres (write) + MongoDB (read) + Redis infrastructure. Only Article publishes Kafka events (article.created, article.published). Use Express for HTTP and OpenTelemetry for tracing. Generate the full service.",
+      "expected_output": "Layer-first structure with aggregate subfolders: domain/article/ and domain/tip/ each with their entity; application/ports/outbound/database/article/ and /tip/ with their own read/write ports; messaging port only under application/ports/outbound/messaging/article/ (not tip); use-cases/article/ and use-cases/tip/ with their respective use cases; adapters/inbound/http/express/ with separate article-controller and tip-controller, single bootstrap mounting both; adapters/outbound/messaging/kafka/ only for article; shared infrastructure connections.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "domain-aggregate-subfolders",
+          "description": "Domain entities are in aggregate subfolders: domain/article/article.ts and domain/tip/tip.ts (not flat in domain/)"
+        },
+        {
+          "name": "use-case-aggregate-subfolders",
+          "description": "Use cases are in aggregate subfolders: use-cases/article/ and use-cases/tip/"
+        },
+        {
+          "name": "ports-per-aggregate",
+          "description": "Each aggregate has its own port files (e.g. ports/outbound/database/article/ and ports/outbound/database/tip/)"
+        },
+        {
+          "name": "messaging-only-for-article",
+          "description": "Kafka/messaging port and adapter exist only for Article, not for Tip"
+        },
+        {
+          "name": "single-bootstrap-wires-both",
+          "description": "A single bootstrap.ts mounts both ArticleController and TipController on the same Express app"
+        },
+        {
+          "name": "separate-controllers",
+          "description": "Separate controller files exist for Article and Tip (not one combined controller)"
+        },
+        {
+          "name": "shared-infrastructure-connections",
+          "description": "Infrastructure connections (Postgres, MongoDB, Redis) are not duplicated — one connection instance shared across both aggregates in bootstrap"
+        }
+      ]
+    }
+  ]
+}

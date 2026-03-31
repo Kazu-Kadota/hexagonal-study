@@ -1,6 +1,6 @@
 import { Redis } from "ioredis";
 import { IOrdersCachePort } from "../../../../application/ports/outbound/cache/cache.js";
-import { OrderDTO } from "../../../../domain/order.js";
+import { OrderDTO } from "../../../../entity/order/order.js";
 
 export class RedisOrderCache implements IOrdersCachePort {
   constructor(private readonly redis: Redis) {}

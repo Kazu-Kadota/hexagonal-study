@@ -1,4 +1,4 @@
-import { CreateOrderUseCaseExecuteParams } from "../../create-order.js";
+import { CreateOrderUseCaseExecuteParams } from "../../use-cases/create-order.js";
 
 export abstract class IHTTPSPort {
   abstract createOrder(body: CreateOrderUseCaseExecuteParams): Promise<unknown>;

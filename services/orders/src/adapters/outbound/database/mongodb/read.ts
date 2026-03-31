@@ -1,5 +1,5 @@
 import type { Collection, WithId } from "mongodb";
-import type { OrderDTO, OrderStatusType } from "../../../../domain/order.js";
+import type { OrderDTO, OrderStatusType } from "../../../../entity/order/order.js";
 import {
   FindByCustomerIdProjection,
   FindByIdProjection,

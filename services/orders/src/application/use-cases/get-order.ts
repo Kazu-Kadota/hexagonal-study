@@ -1,6 +1,6 @@
-import { IOrdersCachePort } from "./ports/outbound/cache/cache.js";
-import { IOrdersRepositoryReadPort } from "./ports/outbound/database/database-read.js";
-import { IOrdersTelemetryPort } from "./ports/outbound/telemetry/telemetry.js";
+import { IOrdersCachePort } from "../ports/outbound/cache/cache.js";
+import { IOrdersRepositoryReadPort } from "../ports/outbound/database/database-read.js";
+import { IOrdersTelemetryPort } from "../ports/outbound/telemetry/telemetry.js";
 
 export class GetOrderUseCase {
   constructor(

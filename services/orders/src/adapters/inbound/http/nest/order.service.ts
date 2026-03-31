@@ -1,9 +1,9 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { CancelOrderUseCase } from "../../../../application/cancel-order.js";
-import { DeleteOrderUseCase } from "../../../../application/delete-order.js";
-import { GetOrderUseCase } from "../../../../application/get-order.js";
-import { CreateOrderUseCase } from "../../../../application/create-order.js";
-import { CurrencyType, OrderDTO } from "../../../../domain/order.js";
+import { CancelOrderUseCase } from "../../../../application/use-cases/cancel-order.js";
+import { DeleteOrderUseCase } from "../../../../application/use-cases/delete-order.js";
+import { GetOrderUseCase } from "../../../../application/use-cases/get-order.js";
+import { CreateOrderUseCase } from "../../../../application/use-cases/create-order.js";
+import { CurrencyType, OrderDTO } from "../../../../entity/order/order.js";
 
 @Injectable()
 export class OrderService {
