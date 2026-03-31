@@ -1,4 +1,4 @@
-import { OrderDTO } from "../../../../domain/order.js";
+import { OrderDTO } from "../../../../entity/order/order.js";
 
 export abstract class IOrdersCachePort {
   abstract get(id: string): Promise<OrderDTO | null>;

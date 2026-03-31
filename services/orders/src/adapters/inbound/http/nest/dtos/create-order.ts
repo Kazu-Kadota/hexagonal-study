@@ -1,5 +1,5 @@
 import { IsNotEmpty, IsNumber, IsString, IsUUID } from "class-validator";
-import { CurrencyType } from "../../../../../domain/order.js";
+import { CurrencyType } from "../../../../../entity/order/order.js";
 
 export class CreateOrderBody {
   @IsNotEmpty()

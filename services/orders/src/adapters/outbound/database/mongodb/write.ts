@@ -1,5 +1,5 @@
 import type { Collection } from "mongodb";
-import type { OrderDTO } from "../../../../domain/order.js";
+import type { OrderDTO } from "../../../../entity/order/order.js";
 import { FindByIdProjection } from "../../../../application/ports/outbound/database/database-read.js";
 import { IOrdersRepositoryWritePort } from "../../../../application/ports/outbound/database/database-write.js";
 

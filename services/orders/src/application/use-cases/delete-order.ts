@@ -1,7 +1,7 @@
-import { IOrdersCachePort } from "./ports/outbound/cache/cache.js";
-import { IOrdersRepositoryWritePort } from "./ports/outbound/database/database-write.js";
-import { IOrdersEventBusPort } from "./ports/outbound/messaging/messaging.js";
-import { IOrdersTelemetryPort } from "./ports/outbound/telemetry/telemetry.js";
+import { IOrdersCachePort } from "../ports/outbound/cache/cache.js";
+import { IOrdersRepositoryWritePort } from "../ports/outbound/database/database-write.js";
+import { IOrdersEventBusPort } from "../ports/outbound/messaging/messaging.js";
+import { IOrdersTelemetryPort } from "../ports/outbound/telemetry/telemetry.js";
 
 export class DeleteOrderUseCase {
   constructor(

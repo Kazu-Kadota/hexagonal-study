@@ -1,4 +1,4 @@
-import { CurrencyType, OrderStatusType } from "../../../../domain/order.js";
+import { CurrencyType, OrderStatusType } from "../../../../entity/order/order.js";
 
 export type PaginationParameters = {
   page: number;

@@ -1,4 +1,4 @@
-import { CurrencyType } from "../../../../../domain/order.js";
+import { CurrencyType } from "../../../../../entity/order/order.js";
 
 export type CreateOrderBody = {
   customerId: string;

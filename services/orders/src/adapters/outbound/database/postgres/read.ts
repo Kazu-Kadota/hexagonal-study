@@ -1,4 +1,4 @@
-import type { OrderDTO, OrderStatusType } from "../../../../domain/order.js";
+import type { OrderDTO, OrderStatusType } from "../../../../entity/order/order.js";
 import { FindByCustomerIdProjection, FindByIdProjection, FindByStatusProjection, IOrdersRepositoryReadPort, PaginatedOrders, PaginationParameters } from "../../../../application/ports/outbound/database/database-read.js";
 import { PrismaClient } from "../../../../generated/orders/client.js";
 
