@@ -13,329 +13,485 @@ description: >
 
 # Hexagonal Microservice Scaffold
 
-This skill generates a complete, production-patterned TypeScript microservice (or full monorepo) using
-**Hexagonal Architecture** (Ports & Adapters), **Clean Architecture** layering, **Domain-Driven Design**
-entities, and **Event-Driven** communication, not depending in which technology are used (SNS, Kafka, etc).
+This skill generates a production-patterned TypeScript microservice using **Hexagonal Architecture**
+(Ports & Adapters), **Clean Architecture** layering, **Domain-Driven Design** entities, and
+**Event-Driven** communication.
 
-The reference implementation lives at `https://github.com/Kazu-Kadota/hexagonal-study/services/orders` and `https://github.com/Kazu-Kadota/hexagonal-study/services/payments`.
-If those paths are accessible, always read the actual source as your ground truth. This skill documents
-the patterns so you can replicate them anywhere.
-
-This skill will be used for another people and companies, so this is just a guideline, not a instruction of how you must implement.
-You need to understand how the user want to implement, so ask clarify questions (as step 0).
+The reference implementation: `https://github.com/Kazu-Kadota/hexagonal-study/services/orders` and `.../payments`.
+If accessible, always read actual source as ground truth.
 
 ---
 
-## Step 0 — Gather context before writing any code
+## How this skill works — state machine
 
-Ask the user (or infer from context) the following. Never guess the domain without checking.
+This skill is designed to be executed in **small, reviewable phases**. Each agent invocation completes
+exactly one phase, writes state to disk, and pauses for user review before the next phase begins.
 
-1. **Domain name** — the bounded context (e.g. `orders`,  `health`, `science`)
-2. **Entity name** — the aggregate root (e.g. `Order`, `Health`, `Articles`)
-3. **Entity fields** — what data does it hold?
-4. **States/transitions** — what status values exist? What business operations change state?
-5. **Use cases** — what actions does the service expose? (create, get, cancel, delete, etc.)
-6. **Inbound protocol** — HTTP only? Express, NestJS, or both?
-7. **Write database** — Postgres (default) or MongoDB?
-8. **Read database** — same as write (no CQRS) or a separate read store? If separate, ask which sync strategy: inline, outbox, event-driven, or CDC. See `references/cqrs-sync.md` for the tradeoff table.
-9. **External dependencies** — does it call another service, like payment gateway?
-10. **Monorepo or standalone?** — adding to an existing monorepo root, or creating from scratch?
+**On every invocation, start here:**
+
+1. Look for `services/<domain>/claude-progress.json`
+   - **Not found** → this is a new scaffold → run **Phase 0**
+   - **Found, `awaiting_user_review: true`** → tell the user the current phase is done and waiting. Ask if they want to continue to the next phase
+   - **Found, `awaiting_user_review: false`** → read `current_phase` and jump directly to that phase
+2. If the user is asking to **add something to an existing service** (a new entity, a consumer, error handling, tests, Terraform) and no progress file exists → go to **Targeted Additions** at the bottom
 
 ---
 
-## Step 1 — Monorepo root (only if creating from scratch)
+## microservice-preferences.json
 
-See `references/monorepo.md` for the root `package.json`, `tsconfig.json`, and `docker-compose.yml` templates.
+Lives at `services/<domain>/microservice-preferences.json`. First written in Phase 0, but **updated
+any time new information is gathered** — including mid-scaffold if the user introduces a new technology
+or changes a decision.
 
-The root `package.json` uses npm workspaces: `"workspaces": ["services/*"]`.
-Each service is independently deployable with its own `package.json` named `@<prefix>/<service-name>`.
+This file is **not a rigid schema**. It is an organic record of every decision the user has made about
+this microservice. Write keys that reflect what was actually said, using natural names. If the user says
+"use Postgres for writes and MongoDB for reads", write that. If they say "I want to use Axios to call
+the payment service", write that too. If they later say "actually add Redis for caching", append it.
 
----
+The file must contain enough information for a fresh agent (with no conversation history) to understand
+the full picture of the microservice — its domain, its technologies, and every architectural decision
+made so far.
 
-## Step 2 — Service skeleton
-
-> **If the request covers multiple services**, scaffold them **one at a time**. Complete every layer of the first service fully before moving to the second. After each service is done, confirm with the user before proceeding. Partial scaffolding of many services at once is far less useful than one complete, working service.
-
-Create this directory tree adapted to the technologies the user chose (e.g. DynamoDB instead of Postgres → `adapters/outbound/database/dynamodb/`; SQS instead of Kafka → `adapters/outbound/messaging/sqs/`; gRPC instead of Express → `adapters/inbound/grpc/`). Only include directories that correspond to the chosen stack — do not generate Prisma files if the user is not using Postgres/Prisma, do not add a Redis folder if using an in-memory cache, etc.
-
-Substitute `<entity>` with the lowercase entity name, `<Entity>` with PascalCase:
-
-```
-services/<domain>/
-├── package.json
-├── tsconfig.json
-├── prisma.config.ts
-├── prisma/
-│   └── schema.prisma
-├── .env.example
-└── src/
-    ├── main.ts
-    ├── domain/
-    │   └── <entity>.ts
-    ├── application/
-    │   ├── ports/
-    │   │   ├── inbound/
-    │   │   │   └── http.ts
-    │   │   └── outbound/
-    │   │       ├── database/
-    │   │       │   ├── database-read.ts
-    │   │       │   └── database-write.ts
-    │   │       ├── cache/
-    │   │       │   └── cache.ts
-    │   │       ├── messaging/
-    │   │       │   └── messaging.ts
-    │   │       └── telemetry/
-    │   │           └── telemetry.ts
-    │   └── use-cases/
-    │       ├── create-<entity>.ts
-    │       ├── get-<entity>.ts
-    │       ├── cancel-<entity>.ts     ← only if entity has a cancel operation
-    │       └── delete-<entity>.ts
-    ├── adapters/
-    │   ├── inbound/
-    │   │   └── http/
-    │   │       ├── express/
-    │   │       │   ├── bootstrap.ts
-    │   │       │   ├── <entity>-controller.ts
-    │   │       │   └── dtos/
-    │   │       │       ├── create-<entity>.ts
-    │   │       │       └── get-<entity>.ts
-    │   │       └── nest/
-    │   │           ├── bootstrap.ts
-    │   │           ├── <entity>.controller.ts
-    │   │           ├── <entity>.service.ts
-    │   │           ├── <entity>.module.ts
-    │   │           ├── token.ts
-    │   │           ├── infra/
-    │   │           │   └── client-shutdown.service.ts
-    │   │           └── dtos/
-    │   │               └── <entity>.ts
-    │   └── outbound/
-    │       ├── database/
-    │       │   ├── postgres/
-    │       │   │   ├── read.ts
-    │       │   │   └── write.ts
-    │       │   └── mongodb/
-    │       │       ├── read.ts
-    │       │       └── write.ts
-    │       ├── cache/
-    │       │   └── redis/
-    │       │       └── <entity>-cache.ts
-    │       ├── messaging/
-    │       │   └── kafka/
-    │       │       └── event-bus.ts
-    │       └── telemetry/
-    │           └── otel/
-    │               └── otel-telemetry.ts
-    └── infrastructure/
-        ├── config.ts
-        ├── database/
-        │   ├── ports.ts
-        │   ├── postgres/
-        │   │   └── connection.ts
-        │   └── mongodb/
-        │       └── connection.ts
-        ├── cache/
-        │   ├── ports.ts
-        │   └── redis/
-        │       └── connection.ts
-        ├── messaging/
-        │   ├── port.ts
-        │   └── kafka/
-        │       └── connection.ts
-        └── telemetry/
-            ├── ports.ts
-            └── otel/
-                └── connection.ts
-```
-
-### Multiple aggregates in one service
-
-When a service contains more than one aggregate (e.g., `Article` + `Tip` in an `articles` service), add an aggregate-level subfolder within each layer. The layer-first structure is preserved — the aggregate name is just one level deeper:
-
-```
-src/
-├── domain/
-│   ├── article/
-│   │   └── article.ts
-│   └── tip/
-│       └── tip.ts
-├── application/
-│   ├── ports/
-│   │   └── outbound/
-│   │       ├── database/
-│   │       │   ├── article/
-│   │       │   │   ├── database-read.ts
-│   │       │   │   └── database-write.ts
-│   │       │   └── tip/
-│   │       │       ├── database-read.ts
-│   │       │       └── database-write.ts
-│   │       └── messaging/
-│   │           └── article/          ← only if this aggregate publishes events
-│   │               └── messaging.ts
-│   └── use-cases/
-│       ├── article/
-│       │   └── create-article.ts
-│       └── tip/
-│           └── create-tip.ts
-├── adapters/
-│   ├── inbound/
-│   │   └── http/
-│   │       └── express/
-│   │           ├── bootstrap.ts      ← single bootstrap wires all aggregate controllers
-│   │           ├── article/
-│   │           │   └── article-controller.ts
-│   │           └── tip/
-│   │               └── tip-controller.ts
-│   └── outbound/
-│       ├── database/
-│       │   └── postgres/
-│       │       ├── article/
-│       │       └── tip/
-│       └── messaging/
-│           └── kafka/
-│               └── article-event-bus.ts   ← tip has no event bus adapter
-└── infrastructure/
-    └── ...                           ← connections are shared; not duplicated per aggregate
-```
-
-Rules:
-- **Only create ports and adapters for what an aggregate actually uses.** If `Tip` doesn't publish events, there is no messaging port or adapter for it.
-- **Infrastructure connections are shared.** One Postgres connection, one Kafka producer — wired once in `bootstrap.ts` and passed to whichever adapters need them.
-- **Telemetry is shared across all aggregates** — no aggregate subfolder needed under `ports/outbound/telemetry/`.
-- **One bootstrap, multiple controllers.** `bootstrap.ts` mounts each aggregate's controller at its own path: `app.use('/articles', articleController.buildRouter())`, `app.use('/tips', tipController.buildRouter())`.
-- **Use cases are single-aggregate.** No use case coordinates across aggregates.
+> **At the start of every phase:** read `microservice-preferences.json` and reason about whether you
+> have enough information to complete that phase. If anything is unclear or missing, ask the user
+> before writing any file — even if that question is not in Phase 0's list.
+>
+> **Never ask about something already answered in `microservice-preferences.json`.**
 
 ---
 
-## Step 3 — Layer-by-layer implementation order
+## claude-progress.json
 
-Always implement in this order (each layer depends on the ones before it):
+Lives at `services/<domain>/claude-progress.json`. Created at end of Phase 0, updated after each phase.
 
-### 3a. Domain layer (`src/domain/<entity>.ts`)
+```json
+{
+  "service": "orders",
+  "service_path": "services/orders",
+  "current_phase": "3b",
+  "completed_phases": ["0", "1", "2", "3a"],
+  "awaiting_user_review": true,
+  "files_created": [
+    "services/orders/src/domain/order.ts"
+  ],
+  "key_decisions": {
+    "span_prefix": "orders",
+    "status_enum_values": ["pending", "cancelled"],
+    "entity_id_strategy": "crypto.randomUUID()",
+    "kafka_topic_prefix": "order"
+  },
+  "last_updated": "2026-03-31T00:00:00.000Z"
+}
+```
 
-The domain is a plain TypeScript class with **zero framework imports**. See `references/domain.md`.
+`key_decisions` captures naming conventions and structural choices that must stay consistent across
+all phases and agents. Add new entries whenever a phase introduces a decision that later phases will
+need. Never re-derive them — trust what is recorded here.
 
-Key rules:
-- Private constructor — force use of `create()` and `reconstitute()`
-- `static create(dto)` — validates invariants, throws descriptive errors, generates UUID via `crypto.randomUUID()`
-- `static reconstitute(raw)` — rebuilds from persistence without re-validating (trusts stored data)
-- `toDTO()` — returns a plain object snapshot; use this to cross layer boundaries
-- State transitions are methods (e.g., `cancel()`) that mutate private fields and update `updatedAt`
-- Status enums use `as const` objects, never TypeScript `enum`
+---
 
-### 3b. Application ports (`src/application/ports/`)
+## Phase completion protocol
 
-Ports are **abstract classes** (not TypeScript interfaces). See `references/ports.md`.
+At the end of **every** phase:
 
-Name them: `I<DomainName><Category>Port` — e.g., `IInventoryRepositoryReadPort`.
+1. Update `claude-progress.json`:
+   - Move current phase to `completed_phases`
+   - Set `current_phase` to the next phase
+   - Append all created files to `files_created`
+   - Add any new entries to `key_decisions`
+   - Set `awaiting_user_review: true`
+   - Update `last_updated`
+2. Update `microservice-preferences.json` with any new decisions made during this phase
+3. Tell the user:
+   - What was created (list the files)
+   - Any key decisions made
+   - What the next phase will generate
+   - **"Review these files and start a new conversation saying 'continue the \<domain\> scaffold' when ready."**
 
-- **Inbound port** (`ports/inbound/http.ts`): abstract class `IHTTPSPort` with one abstract method per use case, matching the use case input/output types.
-- **Read port**: projections (lean types, not full entities), plus pagination helpers.
-- **Write port**: `save`, `updateOne`, `delete`, `findById` (for optimistic lock checks before write).
-- **Cache port**: `get(id)`, `set(entity)`, `delete(id)`.
-- **Messaging port**: `publish(topic, message)`.
-- **Telemetry port**: `span<T>(name, fn)`.
+> **TDD mode:** if the user asked for TDD, before implementing each phase write failing tests first.
+> Implement only until those tests pass, then refactor. See `references/testing.md` for file locations.
 
-The cache port's `set()` takes the full DTO (not `id + data`) to keep it simple.
+---
 
-### 3c. Use cases (`src/application/use-cases/`)
+## Phase 0 — Gather context
 
-One file, one class, one public `execute()` method. See `references/use-cases.md`.
+Before writing any file, understand what the user wants to build. The goal is to leave Phase 0 with
+enough clarity to scaffold every layer confidently — not to fill in a form.
 
-Constructor-inject all dependencies (repositories, cache, eventBus, telemetry). No `new ConcreteAdapter()` inside use cases.
+**Start from what the user already told you.** If they said "I want an orders service with Postgres",
+you already know the domain and the write database. Ask only what is still missing.
 
-Standard execute patterns:
-- **Create**: validate via `Entity.create()` → `toDTO()` → write to DB → set cache → publish event → return DTO
+Use the questions below as a **checklist of areas to cover**, not a rigid script. Some answers will
+be obvious from context; others will surface naturally in conversation. If the user's answer opens
+a new question (e.g. "I want to call the payment service" → what protocol? what authentication?),
+follow it.
+
+### Areas to clarify
+
+- **Domain and entity** — what is the bounded context? What is the aggregate root? What fields does it have?
+- **States and transitions** — what status values exist? What operations change state?
+- **Use cases** — what actions does the service expose?
+- **Inbound** — how will this service be called? HTTP (Express, NestJS)? Event-driven (Kafka consumer, SQS poller)? Both? Something else?
+- **Write persistence** — where does the service write data? Which technology?
+- **Read persistence** — same as write, or a separate read model (CQRS)? If separate, which sync strategy? See `references/cqrs-sync.md`.
+- **Cache** — is there a cache layer? Which technology?
+- **Messaging / events** — does the service publish events? Which broker?
+- **Telemetry** — is observability required? Which implementation?
+- **External integrations** — does the service call other services or third-party APIs? How (HTTP, gRPC, SDK)?
+- **Monorepo** — adding to an existing monorepo or creating from scratch?
+- **TDD** — should tests be written layer by layer before implementation?
+- **Terraform** — scaffold AWS infrastructure after the app code?
+- **Multiple aggregates** — more than one entity in this service?
+
+You are not limited to these questions. If something about the user's domain or stack would affect
+the scaffold and isn't answered yet, ask.
+
+### After all context is gathered
+
+- Write `services/<domain>/microservice-preferences.json` with everything decided so far
+- Create `services/<domain>/claude-progress.json` with `current_phase` set to the next applicable phase, `completed_phases: ["0"]`, empty `files_created`, empty `key_decisions`
+- Apply **Phase completion protocol**
+
+---
+
+## Phase 1 — Monorepo root
+
+*Only if creating from scratch. If the user is adding to an existing monorepo, skip to Phase 2.*
+
+Read `references/monorepo.md` for templates.
+
+Before writing: check `microservice-preferences.json` for any monorepo-level decisions (workspace
+structure, docker services needed). Generate only what the user's stack actually requires — if there
+is no Kafka, there is no Kafka service in docker-compose, and so on.
+
+Files to generate:
+- `package.json` (workspaces: `["services/*"]`)
+- `tsconfig.json`
+- `docker-compose.yml`
+
+---
+
+## Phase 2 — Service skeleton
+
+Create the directory tree and non-code config files. No TypeScript implementation yet.
+
+Before writing: read `microservice-preferences.json` and reason about the full shape of the service.
+Which directories will exist? What technologies drive the structure? If the user mentioned a
+technology that would create a new directory (e.g. a third-party Axios client), plan a slot for it
+in the outbound adapters now. If the directory structure is unclear for any technology, ask.
+
+Files to generate:
+- `services/<domain>/package.json`
+- `services/<domain>/tsconfig.json`
+- `services/<domain>/.env.example`
+- `services/<domain>/prisma/schema.prisma` and `prisma.config.ts` — only if the user's write DB uses Prisma
+
+Create the skeleton directory structure adapted to the decided stack. For **multiple aggregates**:
+read the multiple-aggregates structure section below before generating.
+
+---
+
+## Phase 3a — Domain layer
+
+Read `references/domain.md`.
+
+Before writing: verify in `microservice-preferences.json` that you know the entity fields, status
+values, and all transition operations. If any is missing, ask now — generating a wrong domain means
+every later phase diverges.
+
+Files to generate (one per aggregate when there are multiple):
+- `src/domain/<entity>.ts`
+
+Key rules — all enforced here:
+- Private constructor, `static create(dto)`, `static reconstitute(raw)`, `toDTO()`
+- Status as `as const` object, never TypeScript `enum`
+- State transition methods mutate private fields and update `updatedAt`
+- Zero framework imports
+
+Record in `key_decisions`: `status_enum_values`, `entity_id_strategy`, `transition_method_names`.
+
+---
+
+## Phase 3b — Application ports
+
+Read `references/ports.md`.
+
+Before writing: reason through every outbound concern the service has — persistence, cache,
+messaging, telemetry, and any external integrations mentioned by the user. Each concern needs a port.
+If the user mentioned calling a third-party API (e.g. FCM, a payment gateway), there must be a port
+for it here, even if that technology is not one of the "standard" list.
+
+Files to generate:
+- `src/application/ports/inbound/http.ts` — one abstract method per use case
+- One read port and one write port per persistence store decided by the user
+- Cache port — if the user has a cache layer
+- Messaging port — if the user publishes events
+- Telemetry port — if the user has observability
+- One port per external integration the user mentioned
+
+For **multiple aggregates**: each aggregate that uses a given port gets its own subfolder under it.
+Only create ports for what an aggregate actually uses.
+
+All ports are **abstract classes**, not interfaces. Naming: `I<Domain><Category>Port`.
+
+Record in `key_decisions`: `port_naming_pattern`.
+
+---
+
+## Phase 3c — Use cases
+
+Read `references/use-cases.md`.
+
+Before writing: verify that every use case listed in `microservice-preferences.json` is accounted
+for, and that every dependency (ports) generated in Phase 3b is available to wire. If the user
+mentioned a use case that involves a technology not yet in the preferences (e.g. "send a push
+notification after creating"), surface that now and update `microservice-preferences.json`.
+
+Files to generate:
+- One file per use case: `src/application/use-cases/<verb>-<entity>.ts`
+- For multiple aggregates: `src/application/use-cases/<entity>/<verb>-<entity>.ts`
+
+One file, one class, one public `execute()` method. Constructor-inject all dependencies.
+Every `execute()` wraps its entire body in `this.telemetry.span("<domain>.<action>", ...)`.
+
+Standard patterns:
+- **Create**: `Entity.create()` → `toDTO()` → write DB → set cache → publish event → return DTO
 - **Get**: cache lookup → DB read fallback → set cache → return
-- **Cancel/Update**: cache or DB read → `Entity.reconstitute()` → call transition method → `toDTO()` → write → update cache → publish event
-- **Delete**: write repo `delete()` → cache `delete()` → publish event
+- **Cancel/Update**: read → `Entity.reconstitute()` → transition → `toDTO()` → write → cache → event
+- **Delete**: write `delete()` → cache `delete()` → publish event
 
-Wrap the entire execute body in `this.telemetry.span("<domain>.<action>", async () => { ... })`.
+Record in `key_decisions`: `span_prefix`, `span_naming_example`.
 
-Span naming convention: `<domain>.<action>` (e.g. `inventory.reserve`, `notifications.send`).
+---
 
-### 3d. Outbound adapters (`src/adapters/outbound/`)
+## Phase 3d-1 — Outbound adapters: database
 
-Each adapter is a class that **implements** one port. See `references/adapters-outbound.md`.
+Read `references/adapters-outbound.md` (database section).
 
-There are a example of each implementation:
+Before writing: check `microservice-preferences.json` for the decided write and read databases.
+For each database technology the user chose, generate the corresponding adapter(s).
+For **multiple aggregates**: each aggregate gets its own subfolder within the adapter.
 
-- **PostgresWrite** (Prisma): `upsert` for both `save` and `updateOne`, `delete` by id, `findUnique` for `findById`
-- **MongoRead**: `findOne` / `find` with pagination for read projections — maps raw MongoDB documents to typed projection objects
-- **MongoWrite**: same as Postgres write but using MongoDB collection API
-- **RedisCache**: key pattern `<entity>:<id>`, always set TTL (default 60 seconds), parse/stringify JSON
-- **KafkaEventBus**: `producer.send({ topic, messages: [{ value: JSON.stringify(message) }] })`
-- **OTelTelemetry**: `tracer.startActiveSpan(name, async (span) => { try { result = await fn(); span.end(); return result; } catch(e) { span.recordException(e); span.end(); throw e; } })`
+Generate exactly the adapters that match the user's decisions — no more, no less.
 
-### 3e. Infrastructure connections (`src/infrastructure/`)
+---
 
-Connection classes implement abstract port interfaces (`RepositoryConnectionPort`, `MessagingConnectionPort`, `TelemetryConnectionPort`). See `references/infrastructure.md`.
+## Phase 3d-2 — Outbound adapters: cache, messaging, telemetry, external integrations
 
-Pattern: lazy singleton — check `if (this.client) return` at the top of `connect()`. Expose `getClient()` that throws if not connected. Implement `isHealthy()` for each connection.
+Read `references/adapters-outbound.md` (cache, messaging, telemetry sections).
 
-Config (`config.ts`): Zod schema that reads from `process.env`, provides defaults, and exports a single typed `config` object. No `process.env` access anywhere else in the codebase.
+Before writing: check `microservice-preferences.json` for every outbound concern beyond the
+database — cache, event broker, telemetry, and any external integrations (HTTP clients,
+third-party SDKs). Generate an adapter for each one.
 
-### 3f. Inbound adapters (`src/adapters/inbound/`)
+For external integrations not covered by the standard reference file (e.g. an Axios HTTP client to
+an internal service, a Firebase SDK), implement the adapter following the same port-implements
+pattern: one class, implements the port from Phase 3b, no business logic.
 
-Inbound adapters come in two flavours: **request-driven** (HTTP, gRPC) and **event-driven** (Kafka consumer, SQS poller). Both drive use cases in exactly the same way — the use case does not know which type called it.
+Key conventions to follow regardless of technology:
+- Cache adapters always include a TTL in `set()`
+- Message topic names follow `<entity>.<past-tense-verb>` (e.g. `order.created`)
 
-**HTTP / Express** (`adapters/inbound/http/express/`):
-- `<entity>-controller.ts`: implements `IHTTPSPort`, holds use case instances, has `buildRouter()` returning an Express `Router`
-- `bootstrap.ts`: the **composition root** — connects all infrastructure, instantiates adapters, wires use cases, wires controller, starts express server, registers graceful shutdown
+Record in `key_decisions`: any topic naming, cache key pattern, TTL defaults introduced here.
 
-**HTTP / NestJS** (`adapters/inbound/http/nest/`):
-- `token.ts`: `Symbol` constants for every injectable (one per connection, adapter, and use case)
-- `<entity>.module.ts`: `@Module` with `useFactory` providers for every token; the factories mirror the Express bootstrap wiring
-- `<entity>.service.ts`: `@Injectable()` that injects use cases via `@Inject(UseCaseClass)` and delegates to them
-- `<entity>.controller.ts`: `@Controller()` with route handlers that call the service
-- `infra/client-shutdown.service.ts`: NestJS lifecycle hook for graceful shutdown of connections
+---
 
-**Messaging consumer** (`adapters/inbound/messaging/kafka/` or `.../sqs/`):
-- `<entity>-consumer.ts`: subscribes to one or more topics; on each message, parses the payload and delegates to the matching use case. **Only parses and delegates — no business logic here.** Unknown topics and malformed messages are logged and skipped (never thrown).
-- `bootstrap.ts`: second composition root — wires its own connections and use cases, starts the consumer, registers graceful shutdown. Runs in parallel with the HTTP bootstrap in `main.ts`.
-- No new inbound port abstract class is needed: the use case is already the application boundary. Only add a consumer port if you have a concrete reason to swap the consumer implementation.
+## Phase 3e — Infrastructure connections
 
-See `references/adapters-inbound.md` for full templates of all three variants.
+Read `references/infrastructure.md`.
 
-### 3g. Entry point (`src/main.ts`)
+Before writing: `config.ts` is the only place in the entire codebase that reads `process.env`.
+Every environment variable the service needs must be declared in the Zod schema here.
+Check `microservice-preferences.json` to know which connections are needed, then generate one
+connection class per infrastructure technology.
 
-Bootstrap the application depending of the configuration and preferences of the user. In the next example, there is Telemetry configuration from start and HTTP Express and Nest implementations, but it could have gRPC or WebSocket implementations also, for example. 
+Files to generate:
+- `src/infrastructure/config.ts` — Zod schema, reads `process.env`, exports typed `config`
+- One connection class per infrastructure technology (database, cache, messaging, telemetry)
+
+Pattern: lazy singleton — check `if (this.client) return` at top of `connect()`.
+Infrastructure connections are **shared across all aggregates** — never duplicated.
+
+---
+
+## Phase 3f-1 — Inbound adapter: HTTP
+
+Read `references/adapters-inbound.md`.
+
+Before writing: check `microservice-preferences.json` for which HTTP framework(s) the user chose.
+If the user mentioned Express, generate the Express adapter. If NestJS, generate NestJS.
+If both, generate both. If the user has not yet decided on an HTTP framework, ask now.
+
+**Express** files:
+- `src/adapters/inbound/http/express/<entity>-controller.ts`
+- `src/adapters/inbound/http/express/bootstrap.ts` — composition root, graceful shutdown with `Promise.allSettled`
+- DTOs under `src/adapters/inbound/http/express/dtos/`
+
+**NestJS** files:
+- `src/adapters/inbound/http/nest/token.ts` — `Symbol` constants for every injectable
+- `src/adapters/inbound/http/nest/<entity>.module.ts`
+- `src/adapters/inbound/http/nest/<entity>.service.ts`
+- `src/adapters/inbound/http/nest/<entity>.controller.ts`
+- `src/adapters/inbound/http/nest/infra/client-shutdown.service.ts`
+- `src/adapters/inbound/http/nest/dtos/<entity>.ts`
+- `src/adapters/inbound/http/nest/bootstrap.ts`
+
+For **multiple aggregates**: one controller per aggregate, single `bootstrap.ts` wires all of them.
+
+---
+
+## Phase 3f-2 — Inbound adapter: messaging consumer
+
+Read `references/adapters-inbound.md` (messaging consumer section).
+
+Before writing: check `microservice-preferences.json` for whether the service consumes events and
+which topics. If the user mentioned that the service reacts to events from other services but has
+not specified the topics or broker, ask now.
+
+Files to generate:
+- `src/adapters/inbound/messaging/<broker>/<entity>-consumer.ts` — subscribes to topics, parses, delegates to use cases. No business logic here. Unknown topics and malformed messages are logged and skipped.
+- `src/adapters/inbound/messaging/<broker>/bootstrap.ts` — separate composition root for the consumer
+
+---
+
+## Phase 3g — Entry point
+
+File to generate:
+- `src/main.ts` — bootstraps telemetry first, then all inbound adapters in the order the user decided
 
 ```ts
 import { config } from "./infrastructure/config.js";
-import { bootstrapExpress } from "./adapters/inbound/http/express/bootstrap.js";
-// import { bootstrapNest } from "./adapters/inbound/http/nest/bootstrap.js";
-import { TelemetryConnection } from "./infrastructure/telemetry/otel/connection.ts";
 
 async function bootstrap() {
-  const telemetry = new TelemetryConnection(`${config.app.name}-service`, config.telemetry.otel.endpoint);
-  telemetry.start();
-
-  await bootstrapExpress();
-  // await bootstrapNest();
+  // 1. Start telemetry (if applicable)
+  // 2. Start HTTP server (Express / NestJS / both — per preferences)
+  // 3. Start messaging consumer (if applicable, runs in parallel with HTTP)
 }
 
 bootstrap().catch((error) => { console.error(error); process.exit(1); });
 ```
 
----
-
-## Step 4 — Event conventions
-
-Next, there is a example for Kafka Event, but it could be others services like SNS.
-
-- Topic names: `<entity>.<past-tense-verb>` — e.g. `product.created`, `inventory.reserved`
-- Event payload shape (always include `type` and `payload`):
-  ```ts
-  { type: "product.created", payload: { productId, name, price, idempotencyKey } }
-  ```
-- The event bus adapter publishes; Kafka consumer adapters (inbound) subscribe in their own bootstrap
-- Place shared event type definitions in `shared/events/` at the monorepo root
+All local imports use `.js` extension (required by NodeNext module resolution).
 
 ---
 
-## Step 5 — Layering rules (enforce strictly)
+## Phase 4 — Events & layering verification
+
+No new files. Read the generated code and verify:
+
+- Layering rules (table below) have no violations
+- Message topic names follow `<entity>.<past-tense-verb>` convention
+- Event payload shape: `{ type: "entity.verb", payload: { ... } }`
+- Shared event type definitions in `shared/events/` at monorepo root
+- All local imports use `.js` extension
+
+Fix any violations before marking this phase complete.
+
+---
+
+## Phase 5-1 — Terraform: service files
+
+Read `references/terraform.md`.
+
+*Only if the user asked for Terraform. If not mentioned, ask whether they want it before starting.*
+
+Gather any Terraform-specific context not yet in `microservice-preferences.json`:
+- Compute type (Lambda zip, Lambda container, or ECS Fargate?)
+- Which AWS resources and how many of each (SQS queues, SNS topics, DynamoDB tables, etc.)
+- VPC — new or existing?
+- CI/CD system (GitHub Actions is the default)
+- Environment names (default: `dev`, `staging`, `prd`)
+- S3 bucket and DynamoDB lock table for remote state
+
+Files to generate:
+- `services/<domain>/terraform/main.tf`, `variables.tf`, `outputs.tf`, `locals.tf`, `data.tf`
+- `services/<domain>/terraform/backend.tf` — state key only; bucket and region go in `.tfbackend` files
+- `services/<domain>/terraform/environments/<env>.tfvars` and `<env>.tfbackend` for each environment
+- `services/<domain>/terraform/Makefile`
+
+---
+
+## Phase 5-2 — Terraform: modules
+
+Read `references/terraform-modules.md`.
+
+Check which modules already exist in `terraform/modules/` before creating any.
+Only generate modules this service needs that are not already present.
+
+---
+
+## Phase 6a — Tests: domain
+
+Read `references/testing.md`.
+
+*Only if the user requested tests. If not mentioned, ask before starting.*
+
+Files to generate:
+- `src/domain/_test/<entity>.test.ts` — pure TypeScript, no mocks, covers every validation branch in `create()` and every guard in transition methods
+
+---
+
+## Phase 6b — Tests: use cases
+
+Read `references/testing.md`.
+
+Files to generate:
+- `src/application/use-cases/_test/doubles.ts` — test doubles that **extend abstract port classes** (not `vi.fn()`)
+- `src/application/use-cases/_test/<use-case>.test.ts` — one file per use case
+
+---
+
+## Phase 6c — Tests: E2E
+
+Read `references/testing.md`.
+
+Files to generate:
+- `src/_test/e2e/setup.ts` — builds the app with in-memory adapters; no real database or broker
+- `src/_test/e2e/<action>.e2e.test.ts` — supertest against the real controller/use case/domain stack
+
+Add `"test": "vitest run"` and `"test:e2e": "vitest run _test/e2e"` to `package.json`.
+
+---
+
+## Phase 7 — Quality checklist
+
+No new files. Read every generated file and verify:
+
+- [ ] `domain/<entity>.ts` has no external imports
+- [ ] All ports are abstract classes, not interfaces
+- [ ] Every use case wraps execute body in `telemetry.span()`
+- [ ] Cache adapter always includes TTL in `set()`
+- [ ] `process.env` only accessed inside `infrastructure/config.ts`
+- [ ] Express bootstrap has graceful shutdown with `Promise.allSettled`
+- [ ] NestJS `token.ts` has a Symbol for every injectable
+- [ ] Prisma schema enums match domain entity enum values exactly
+- [ ] Span names follow `<domain>.<action>` convention
+- [ ] Message topic names follow `<entity>.<past-tense-verb>` convention
+- [ ] Domain tests cover all validation branches
+- [ ] Use case test doubles extend abstract port classes
+- [ ] E2E setup uses in-memory adapters
+- [ ] All local imports use `.js` extension
+- [ ] Terraform `backend.tf` has only the state key; all environments have `.tfvars` + `.tfbackend`
+
+Fix any failures. When all pass: set `current_phase: "done"` in `claude-progress.json`.
+
+---
+
+## Targeted additions
+
+When the user wants to add to an already-scaffolded service without a full scaffold:
+
+- **Add a new entity/aggregate** → run Phases 3a → 3b → 3c → 3d-1 → 3d-2 for the new aggregate. If the new aggregate requires a technology not already in the service (e.g. a new external API), ask the user about it and update `microservice-preferences.json` before generating. Then update the shared bootstrap.
+- **Add a messaging consumer** → run Phase 3f-2. Read existing ports and use cases before wiring.
+- **Add error handling** → read `references/errors.md`. Generate `src/domain/errors.ts` and update the inbound adapter with an error-handler middleware.
+- **Add tests** → run Phases 6a, 6b, 6c as needed.
+- **Add Terraform** → run Phases 5-1 and 5-2. Gather Terraform context first.
+
+In all cases: read existing code before generating anything. Respect decisions already made.
+
+---
+
+## Layering rules
 
 | Layer | Can import | Cannot import |
 |---|---|---|
@@ -345,39 +501,18 @@ Next, there is a example for Kafka Event, but it could be others services like S
 | `infrastructure/` | own connections | domain logic, application logic |
 | `bootstrap.ts` | all of the above | — it is the composition root |
 
-If you see `import express` inside `application/`, that's a violation. Fix it before continuing.
-
 ---
 
-## Step 6 — Tests (if requested)
+## Multiple aggregates structure
 
-If the user asks for tests, read `references/testing.md` for full patterns. The short version:
+When the service has more than one aggregate, use a layer-first structure with aggregate subfolders:
 
-- **`src/domain/_test/<entity>.test.ts`** — pure TS, no mocks, covers every validation branch in `create()` and every guard in transition methods
-- **`src/application/use-cases/_test/doubles.ts`** — shared test doubles that extend the abstract port classes (not `vi.fn()`)
-- **`src/application/use-cases/_test/<use-case>.test.ts`** — unit tests wired with the doubles; one file per use case
-- **`src/_test/e2e/setup.ts`** — builds the Express app with in-memory adapters; no test containers needed
-- **`src/_test/e2e/<action>.e2e.test.ts`** — supertest against the real controller/use case/domain stack
-
-Use **Vitest**. Add `"test": "vitest run"` and `"test:e2e": "vitest run _test/e2e"` to `package.json`.
-
----
-
-## Step 7 — Quality checklist before declaring done
-
-- [ ] `domain/<entity>.ts` has no external imports
-- [ ] All ports are abstract classes, not interfaces
-- [ ] Every use case wraps its execute body in `telemetry.span()`
-- [ ] Redis cache always includes TTL in `set()`
-- [ ] `process.env` only accessed inside `infrastructure/config.ts`
-- [ ] If Express as choice of the user: Express bootstrap has graceful shutdown with `Promise.allSettled` across all connections
-- [ ] If NestJS as choice of the user: NestJS `token.ts` has a Symbol for every injectable
-- [ ] If Prisma as choice of the user: Prisma schema enums match domain entity enum values exactly
-- [ ] Span names follow `<domain>.<action>` convention
-- [ ] If Kafka as choice of the user: Kafka topics follow `<entity>.<past-tense-verb>` convention
-- [ ] If tests requested: domain tests cover all validation branches; use case test doubles extend abstract port classes; E2E setup uses in-memory adapters
-- [ ] If error handling requested: typed errors in `domain/errors.ts` (DomainError base + subtypes); inbound adapters translate via `instanceof`; `DomainError` logged as warn, infra errors as error. See `references/errors.md` for HTTP/gRPC/WS/GraphQL mapping conventions.
-- [ ] All local imports use `.js` extension (e.g. `from './domain/order.js'`) — required by NodeNext module resolution
+- `src/domain/<entity>/` per aggregate
+- `src/application/ports/outbound/database/<entity>/` per aggregate
+- `src/application/use-cases/<entity>/` per aggregate
+- One controller per aggregate in `src/adapters/inbound/http/express/<entity>/`, single `bootstrap.ts`
+- Infrastructure connections are **shared** — not duplicated per aggregate
+- Only create ports and adapters for what an aggregate actually uses
 
 ---
 
@@ -388,8 +523,10 @@ Use **Vitest**. Add `"test": "vitest run"` and `"test:e2e": "vitest run _test/e2
 - `references/ports.md` — all port abstract classes with annotations
 - `references/use-cases.md` — use case templates for create/get/cancel/delete patterns
 - `references/adapters-outbound.md` — outbound adapter implementations (Postgres, Mongo, Redis, Kafka, OTel)
-- `references/adapters-inbound.md` — Express controller+bootstrap and NestJS module+service+controller+tokens
+- `references/adapters-inbound.md` — Express controller+bootstrap, NestJS module+service+controller+tokens, messaging consumer
 - `references/infrastructure.md` — connection classes, config.ts Zod schema, Prisma schema template
 - `references/testing.md` — test structure, domain/use-case/E2E patterns, Vitest setup
 - `references/errors.md` — DomainError hierarchy, HTTP/gRPC/WebSocket/GraphQL translation patterns
-- `references/cqrs-sync.md` — read model sync strategies (inline, outbox, event-driven, CDC) with tradeoff table; read when user asks for CQRS
+- `references/cqrs-sync.md` — read model sync strategies (inline, outbox, event-driven, CDC) with tradeoff table
+- `references/terraform.md` — Terraform scaffold: file templates, Makefile, environment files, GitHub Actions CI/CD workflow
+- `references/terraform-modules.md` — module templates for vpc, sqs, sns, eventbridge, postgres-rds, dynamodb, redis, msk-kafka, ecs-fargate, lambda, api-gateway, route53, ssm
